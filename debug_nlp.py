@@ -1,0 +1,10 @@
+from services.nlp_processor import NLPProcessorService
+nlp = NLPProcessorService()
+res = nlp.process("I'm worried about my future and don't know what career to choose.")
+print("career uncertainty:", res)
+res2 = nlp.process("I'm angry because I performed badly in my mid semester examination.")
+print("academic performance:", res2)
+res3 = nlp.process("I'm frustrated about my exam.")
+print("coexistence:", res3)
+res4 = nlp.process("I'm so sad, my dog died yesterday.")
+print("grief:", res4)

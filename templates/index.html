@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Samvya — Mental Wellness Check</title>
+  <meta name="description" content="Real-time facial emotion detection powered by Swin Transformer. Discover your emotional state and get personalised mental wellness insights." />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/neumorphism.css" />
+</head>
+<body>
+
+  <!-- Top Header Bar -->
+  <header class="top-header-bar">
+    <div class="user-profile-badge" id="user-profile-badge" style="display:none;">
+      <div class="profile-avatar-circle"><i data-lucide="user"></i></div>
+      <div class="profile-text-group">
+        <span class="profile-text-name" id="nav-user-name">Client</span>
+        <span class="profile-text-role" id="nav-user-role">Student</span>
+      </div>
+      <button class="badge-nav-btn" onclick="openProfileModal()" title="Switch or edit user profile">
+        <i data-lucide="user-check"></i> Profile
+      </button>
+      <button class="badge-nav-btn" onclick="openHistoryDrawer()" title="View past sessions">
+        <i data-lucide="history"></i> Sessions (<span id="nav-session-count">0</span>)
+      </button>
+    </div>
+
+    <!-- Developer Toggle -->
+    <div class="dev-toggle-wrapper">
+      <span class="dev-toggle-label">Developer Mode</span>
+      <label class="switch">
+        <input type="checkbox" id="dev-mode-toggle" aria-label="Developer mode">
+        <span class="slider round"></span>
+      </label>
+    </div>
+  </header>
+
+  <main class="app-container" id="app-container">
+    <!-- ══════════════════════════ LEFT PANEL: SCAN ══════════════════════════ -->
+    <div class="left-panel" id="camera-panel">
+      <section id="screen-scan" class="active">
+        <div class="inner glass">
+
+          <div class="scan-heading">
+            <div class="app-logo"><span class="eyebrow">SAMVYA / CHECK-IN</span><h1>A moment to pause.</h1></div>
+            <span class="scan-step">01 / 03</span>
+          </div>
+          <p class="scan-description">Settle into frame. We’ll take a short look before we talk.</p>
+
+          <div class="cam-wrapper">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="overlay-canvas"></canvas>
+
+            <div class="camera-topline"><span><i data-lucide="camera"></i> Camera preview</span><span class="camera-session-label">CHECK-IN</span></div>
+            <div class="face-guide" aria-hidden="true"></div>
+            <!-- Decorative corner brackets -->
+            <div class="corners">
+              <div class="corner tl"></div>
+              <div class="corner tr"></div>
+              <div class="corner bl"></div>
+              <div class="corner br"></div>
+            </div>
+
+
+
+            <!-- Emotion badge overlay -->
+            <div class="emotion-badge" id="emotion-badge">
+              <span class="e-label" id="e-label">Scanning…</span>
+              <div class="conf-bar"><div class="conf-fill" id="conf-fill"></div></div>
+            </div>
+          </div>
+
+          <div class="scan-guidance"><span><i data-lucide="sun"></i> Find soft lighting</span><span><i data-lucide="scan-face"></i> Face the camera</span></div>
+          <!-- Status strip -->
+          <div class="status-strip" id="status-strip">
+            <div class="dot-anim"><span></span><span></span><span></span></div>
+            <p id="status-text" role="status">Initialising camera…</p>
+          </div>
+
+          <!-- Heatmap toggle -->
+          <button class="heatmap-toggle" id="heatmap-toggle" onclick="toggleHeatmap()">
+            <i data-lucide="layers" class="icon-small"></i> Show attention map &nbsp;<span class="htag" id="heatmap-tag">OFF</span>
+          </button>
+
+          <!-- Scan timer progress (hidden until a face is detected) -->
+          <div class="lock-row" id="lock-row" style="display:none;">
+            <div class="timer-track" style="flex:1; height:6px; background:rgba(255,255,255,0.1); border-radius:10px; overflow:hidden;">
+              <div class="timer-fill" id="timer-fill" style="width:0%; height:100%; background:var(--accent); transition:width 0.1s linear;"></div>
+            </div>
+            <span id="lock-text" style="white-space:nowrap;">Analyzing... 10s</span>
+          </div>
+
+        </div>
+      </section>
+    </div>
+
+    <!-- ════════════════════════ RIGHT PANEL: DYNAMIC ════════════════════════ -->
+    <div class="right-panel" id="chat-panel">
+
+      <!-- IDLE / WAITING SCREEN -->
+      <section id="screen-idle" class="screen active">
+        <div class="inner glass empty-state">
+          <div class="empty-icon"><i data-lucide="brain" class="empty-icon-svg"></i></div>
+          <span class="eyebrow">YOUR CHECK-IN</span>
+          <h2>Take a moment. Settle in.</h2>
+          <p>Look toward your camera when you’re ready. After a short scan, we’ll start a conversation.</p>
+        </div>
+      </section>
+
+      <!-- SCREEN 2: CHAT -->
+      <section id="screen-chat" class="screen">
+        <div class="inner glass chat-container" style="display:flex; flex-direction:column; height:80vh; max-height:700px; padding:20px;">
+          
+          <div class="chat-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block; box-shadow:0 0 8px #22c55e;"></span>
+              <span class="chat-title" style="font-weight:600; font-size:1.05rem;">Samvya Counselor</span>
+            </div>
+            <button class="badge-nav-btn" style="background:linear-gradient(135deg, var(--accent, #6366f1), var(--accent2, #a855f7)); color:#fff; border:none; padding:6px 14px;" onclick="finishSessionAndShowReport()">
+              <i data-lucide="check-circle"></i> Finish & Report
+            </button>
+          </div>
+
+          <div class="chat-messages glass" id="chat-messages" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:12px; margin-bottom:15px;">
+            <!-- Messages will be appended here -->
+          </div>
+
+          <div class="chat-input-area" style="display:flex; gap:10px; align-items:center;">
+            <button class="btn-icon" id="btn-voice" title="Tap to record voice" style="width:45px; height:45px; border-radius:50%; border:1px solid var(--accent); background:rgba(255,255,255,0.05); color:var(--text); cursor:pointer; transition:all 0.2s; display:flex; justify-content:center; align-items:center;">
+              <i data-lucide="mic"></i>
+            </button>
+            <input type="text" id="chat-input" aria-label="Your message" placeholder="Type your message here..." style="flex:1; padding:12px 18px; border-radius:25px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text); font-family:'Poppins', sans-serif; font-size:0.95rem; outline:none; transition:border-color 0.2s;" />
+            <button class="btn-send" id="btn-send" style="padding:10px 24px; border-radius:25px; border:none; background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; font-weight:600; font-family:'Poppins', sans-serif; cursor:pointer; transition:transform 0.2s;">Send</button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SCREEN 3: RESULTS -->
+      <section id="screen-results" class="screen">
+        <div class="inner glass">
+
+          <h2>Your Wellbeing Report</h2>
+
+          <!-- Score ring -->
+          <div class="ring-wrapper">
+            <svg class="score-ring" viewBox="0 0 200 200">
+              <defs>
+                <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="var(--accent)" />
+                  <stop offset="100%" stop-color="var(--accent2)" />
+                </linearGradient>
+              </defs>
+              <circle class="ring-bg" cx="100" cy="100" r="80" />
+              <circle class="ring-fill" id="ring-fill" cx="100" cy="100" r="80" />
+            </svg>
+            <div class="ring-center">
+              <span class="ring-score" id="ring-score">0</span>
+              <span class="ring-label">/ 100</span>
+            </div>
+          </div>
+
+          <!-- Detected emotion badge -->
+          <div class="res-emotion-badge" id="res-emotion-badge">😐 Neutral</div>
+
+          <!-- Personalised message -->
+          <div class="res-message-card glass" id="res-message-card">
+            <div class="msg-label">Wellness Insight</div>
+            <p id="res-message"></p>
+          </div>
+
+          <!-- Answer breakdown bars -->
+          <div class="breakdown" id="breakdown">
+            <div class="breakdown-title">Answer Breakdown</div>
+          </div>
+
+          <div class="res-actions-row">
+            <button class="btn-restart" onclick="restart()">
+              <i data-lucide="refresh-cw" class="icon-small"></i> Scan Again
+            </button>
+            <button class="btn-restart" style="background: linear-gradient(135deg, #10b981, #059669); border:none;" onclick="openShareModal()">
+              <i data-lucide="share-2" class="icon-small"></i> Share Report
+            </button>
+            <button class="btn-restart" style="background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);" onclick="openHistoryDrawer()">
+              <i data-lucide="history" class="icon-small"></i> Past Sessions
+            </button>
+          </div>
+
+        </div>
+      </section>
+    </div>
+    
+    <!-- ════════════════════════ DEBUG PANEL: OBSERVABILITY ════════════════════════ -->
+    <div class="debug-panel" id="debug-panel" style="display:none;">
+      <div class="debug-header">
+        <h3 class="debug-title"><i data-lucide="terminal" class="icon-small"></i> DEVELOPER / PIPELINE DEBUG</h3>
+        <span class="debug-label" id="debug-wearable-label" style="display:none;">SIMULATED WEARABLE</span>
+      </div>
+      
+      <div class="debug-scroll-area">
+        
+        <!-- Status -->
+        <div class="debug-section">
+          <div class="debug-section-header">Pipeline Status</div>
+          <div class="debug-section-content">
+            <div class="debug-status-grid">
+              <div>CAMERA:</div><div id="dbg-st-camera" class="dbg-status">WAITING</div>
+              <div>WEARABLE:</div><div id="dbg-st-wearable" class="dbg-status">WAITING</div>
+              <div>CALIBRATION:</div><div id="dbg-st-calibration" class="dbg-status">WAITING</div>
+              <div>BiLSTM:</div><div id="dbg-st-bilstm" class="dbg-status">WAITING</div>
+              <div>CSS:</div><div id="dbg-st-css" class="dbg-status">WAITING</div>
+              <div>INTERVENTION:</div><div id="dbg-st-intervention" class="dbg-status">WAITING</div>
+              <div>GROQ:</div><div id="dbg-st-groq" class="dbg-status">WAITING</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Camera -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Camera & Emotion <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-camera-content">Waiting for detection...</div>
+          </div>
+        </div>
+
+        <!-- MHS -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Mental Health Score <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-ms-content">Waiting...</div>
+            <div class="dbg-warning">⚠️ MS_t is NOT physiological stress S_t.</div>
+          </div>
+        </div>
+
+        <!-- Wearable -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Synthetic Wearable <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-wearable-content">Waiting...</div>
+          </div>
+        </div>
+
+        <!-- Calibration -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Calibration <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-calibration-content">Waiting...</div>
+          </div>
+        </div>
+        
+        <!-- BiLSTM -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Physiological Model (V2 BiLSTM) <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-bilstm-content">Waiting...</div>
+          </div>
+        </div>
+        
+        <!-- CSS -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Contextual Student State (CSS) <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:block;"> <!-- Open by default -->
+            <div id="dbg-css-content">Waiting...</div>
+          </div>
+        </div>
+        
+        <!-- NLP ANALYSIS -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">NLP Analysis <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:block;"> <!-- Open by default -->
+            <div id="dbg-nlp-content">Waiting for chat...</div>
+          </div>
+        </div>
+        
+        <!-- Live Graph -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Live Stress History (H_t) <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:block;"> <!-- Open by default -->
+             <canvas id="dbg-stress-graph" width="300" height="150" style="width:100%; border: 1px solid var(--border); border-radius:4px; margin-top:5px; background:rgba(0,0,0,0.2);"></canvas>
+          </div>
+        </div>
+        
+        <!-- Intervention -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Intervention Selector <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-intervention-content">Waiting...</div>
+          </div>
+        </div>
+        
+        <!-- LLM Guardrail -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">LLM Guardrail <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:block;">
+            <div id="dbg-guardrail-content">Waiting...</div>
+          </div>
+        </div>
+        
+        <!-- Groq -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Groq / LLM Context <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none;">
+            <div id="dbg-groq-content">Waiting...</div>
+          </div>
+        </div>
+        
+        <!-- Timeline -->
+        <div class="debug-section collapsible">
+          <div class="debug-section-header" onclick="toggleDebugSection(this)">Pipeline Event Timeline <i data-lucide="chevron-down"></i></div>
+          <div class="debug-section-content" style="display:none; padding: 0;">
+            <div id="dbg-timeline-content" style="max-height: 250px; overflow-y:auto; padding: 10px; font-family: monospace; font-size: 0.85rem;">
+               Waiting for events...
+            </div>
+            <button onclick="clearTimeline()" style="width: 100%; padding: 5px; background: var(--border); border:none; color:var(--text); cursor:pointer;">Clear Log</button>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </main>
+
+  <!-- ════════════════════════ ONBOARDING / PROFILE MODAL ════════════════════════ -->
+  <div class="profile-modal-overlay" id="profile-modal" style="display:flex;">
+    <div class="profile-card glass">
+      <div class="profile-card-header">
+        <div class="profile-icon-pulse"><i data-lucide="sparkles"></i></div>
+        <span class="eyebrow">A MOMENT FOR YOURSELF</span>
+        <h2>Welcome to Samvya</h2>
+        <p>A little space to pause, reflect, and talk about what’s on your mind.</p>
+      </div>
+
+      <div class="check-in-steps" aria-label="Check-in stages">
+        <span><i aria-hidden="true"></i>Check in</span>
+        <span><i aria-hidden="true"></i>Talk it through</span>
+        <span><i aria-hidden="true"></i>Reflect</span>
+      </div>
+
+      <!-- Quick select returning users -->
+      <div class="returning-users-box" id="returning-users-box" style="display:none;">
+        <span class="returning-label">Returning Profiles:</span>
+        <div class="user-chips-list" id="user-chips-list"></div>
+      </div>
+
+      <form id="profile-form" onsubmit="handleProfileSubmit(event)">
+        <div class="form-group">
+          <label for="input-user-name">Full Name or Preferred Name *</label>
+          <input type="text" id="input-user-name" placeholder="e.g. Akbar" required autocomplete="name" />
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="input-user-role">Role / Academic Status</label>
+            <input type="text" id="input-user-role" placeholder="e.g. CS Student / Faculty" />
+          </div>
+          <div class="form-group" style="max-width:120px;">
+            <label for="input-user-age">Age</label>
+            <input type="number" id="input-user-age" min="10" max="120" placeholder="e.g. 21" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-user-concern">Primary Concern / Goal Today (Optional)</label>
+          <input type="text" id="input-user-concern" placeholder="e.g. Exam anxiety, heavy workload, feeling low" />
+        </div>
+
+        <button type="submit" class="btn-start-scan">
+          <span>Begin my check-in</span>
+          <i data-lucide="arrow-right"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ HISTORY DRAWER ════════════════════════ -->
+  <div class="history-drawer-overlay" id="history-drawer-overlay" style="display:none;" onclick="if(event.target === this) closeHistoryDrawer()">
+    <div class="history-drawer">
+      <div class="history-drawer-header">
+        <h3><i data-lucide="calendar"></i> Session History</h3>
+        <button class="btn-close-drawer" aria-label="Close session history" onclick="closeHistoryDrawer()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="history-drawer-body" id="history-drawer-body">
+        <div style="text-align:center; color:var(--text-muted); padding:30px 10px;">
+          <i data-lucide="clock" style="width:36px; height:36px; margin-bottom:10px; opacity:0.5;"></i>
+          <p>Loading your past sessions...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ SHARE MODAL ════════════════════════ -->
+  <div class="share-modal-overlay" id="share-modal-overlay" style="display:none;" onclick="if(event.target === this) closeShareModal()">
+    <div class="share-modal">
+      <h3><i data-lucide="share-2" style="color:var(--accent);"></i> Share Session Report</h3>
+      <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5;">
+        You can share this confidential wellness report with a counselor, advisor, or mentor. Anyone with this link can view the summary and dialogue transcript.
+      </p>
+
+      <div class="share-link-input-group">
+        <input type="text" id="share-link-input" readonly />
+        <button class="btn-start-scan" style="width:auto; margin:0; padding:10px 18px;" onclick="copyDirectShareLink()">
+          <span id="copy-share-btn-text">Copy</span>
+        </button>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button class="btn-restart" style="width:auto; padding:8px 18px;" onclick="closeShareModal()">Close</button>
+        <a id="share-open-link" href="#" target="_blank" class="btn-start-scan" style="width:auto; margin:0; padding:8px 18px; text-decoration:none;">
+          <span>Open Report</span> <i data-lucide="external-link" class="icon-small"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

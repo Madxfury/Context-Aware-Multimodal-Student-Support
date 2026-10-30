@@ -1,0 +1,44 @@
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Python cache and virtual environment
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.pytest_cache/
+
+# Ignore large datasets and model files
+DataSet/
+Models/
+*.pth
+*.pt
+*.onnx
+
+# Ignore output logs and predictions
+outputs/
+FANE_Test_Predictions.csv
+*.log
+
+# Ignore scratch/temp files
+scratch/
+utilities/realtime_results/snapshots/
+utilities/utilities/realtime_results/snapshots/
+
+# Local credentials and generated session records
+.venv/
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite*
+utilities/client_secrets.json
+utilities/mycreds.json
+utilities/realtime_results/
+utilities/utilities/
+.ipynb_checkpoints/
+traintestsplit/
+.coverage
+htmlcov/

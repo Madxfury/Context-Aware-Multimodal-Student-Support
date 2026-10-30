@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Samvya — Wellness Session Report #{{ session.session_id }}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      overflow-y: auto !important;
+      height: auto !important;
+      min-height: 100vh;
+      background: #030712;
+      color: #f9fafb;
+      padding: 30px 15px;
+    }
+    .share-container {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+    }
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .report-brand h1 {
+      font-size: 1.8rem;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+    }
+    .report-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-action:hover {
+      background: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
+    }
+    .btn-action.primary {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border: none;
+    }
+    .grid-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+    .stat-card {
+      padding: 22px;
+      border-radius: 18px;
+      background: rgba(17, 24, 39, 0.65);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #9ca3af;
+    }
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      width: fit-content;
+    }
+    .badge-normal { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .badge-high { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-moderate { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .transcript-box {
+      padding: 24px;
+      border-radius: 18px;
+      background: rgba(17, 24, 39, 0.65);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .transcript-box h2 {
+      font-size: 1.25rem;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .transcript-messages {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .report-bubble {
+      padding: 14px 18px;
+      border-radius: 16px;
+      line-height: 1.5;
+      font-size: 0.95rem;
+      max-width: 85%;
+    }
+    .report-bubble.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .report-bubble.assistant, .report-bubble.bot {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e5e7eb;
+      border-bottom-left-radius: 4px;
+    }
+    .report-footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #6b7280;
+      padding-top: 15px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    @media print {
+      body { background: #fff !important; color: #111 !important; }
+      .stat-card, .transcript-box { background: #fff !important; border: 1px solid #ddd !important; }
+      .report-actions { display: none !important; }
+      .report-bubble.assistant { background: #f3f4f6 !important; color: #111 !important; }
+      .report-bubble.user { background: #e0e7ff !important; color: #111 !important; }
+    }
+  </style>
+  <link rel="stylesheet" href="/static/css/neumorphism.css" />
+</head>
+<body>
+  <div class="share-container">
+    
+    <header class="report-header">
+      <div class="report-brand">
+        <h1>Samvya Wellness Check-in Report</h1>
+        <p style="color:var(--text-muted); font-size:0.9rem;">
+          Session ID: <code>{{ session.session_id }}</code> &bull; {{ session.created_at }}
+        </p>
+      </div>
+      <div class="report-actions">
+        <a href="/" class="btn-action"><i data-lucide="arrow-left"></i> Home</a>
+        <button class="btn-action" onclick="window.print()"><i data-lucide="printer"></i> Print / PDF</button>
+        <button class="btn-action primary" id="btn-copy-link" onclick="copyShareLink()">
+          <i data-lucide="share-2"></i> <span id="copy-text">Copy Link</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- User Information Strip -->
+    <div class="stat-card" style="border-left: 4px solid var(--accent, #6366f1);">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <span class="stat-label">Client Details</span>
+          <h2 style="font-size:1.35rem; margin-top:3px;">
+            {{ session.user_name or "Anonymous Client" }}
+            {% if session.user_role %}<span style="font-size:0.9rem; font-weight:normal; color:var(--text-muted);">({{ session.user_role }}{% if session.user_age %}, Age {{ session.user_age }}{% endif %})</span>{% endif %}
+          </h2>
+        </div>
+        {% if session.primary_concern %}
+        <div>
+          <span class="stat-label">Primary Concern / Topic</span>
+          <div style="font-weight:500; font-size:1rem; color:var(--text);">{{ session.primary_concern }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="grid-summary">
+      <div class="stat-card">
+        <span class="stat-label">Dominant Facial Emotion</span>
+        <div class="stat-value" style="display:flex; align-items:center; gap:8px;">
+          <span>{{ session.locked_emotion or "Neutral" }}</span>
+          {% if session.confidence %}<span style="font-size:0.95rem; font-weight:normal; color:var(--text-muted);">({{ session.confidence }}% conf.)</span>{% endif %}
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-label">Mental Health Score (MS)</span>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div class="stat-value">{{ session.mental_health_score or 0.0 }}<span style="font-size:0.9rem; color:var(--text-muted);">/100</span></div>
+          <span class="badge-pill {% if session.risk_level == 'high' or session.risk_level == 'Very High Risk' or session.risk_level == 'High Risk' %}badge-high{% elif session.risk_level == 'Moderate Risk' %}badge-moderate{% else %}badge-normal{% endif %}">
+            {{ session.risk_level or "Normal" }}
+          </span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-label">Physiological Vitals</span>
+        <div class="stat-value" style="font-size:1.25rem;">
+          {% if session.average_hr %}
+            Heart Rate: {{ session.average_hr|round(1) }} BPM
+          {% else %}
+            Standard Baseline
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Wellness Insight -->
+    {% if session.summary_insight %}
+    <div class="stat-card" style="background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.25);">
+      <span class="stat-label" style="color:#a5b4fc;">Counselor Clinical & Wellness Insight</span>
+      <p style="font-size:1.05rem; line-height:1.6; margin-top:6px; color:#f3f4f6;">
+        {{ session.summary_insight }}
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- Transcript Box -->
+    <div class="transcript-box">
+      <h2><i data-lucide="message-square"></i> Session Dialogue Transcript</h2>
+      <div class="transcript-messages">
+        {% if session.transcript and session.transcript|length > 0 %}
+          {% for msg in session.transcript %}
+            <div class="report-bubble {{ msg.role }}">
+              <div style="font-size:0.75rem; text-transform:uppercase; margin-bottom:4px; opacity:0.6;">
+                {{ "Client" if msg.role == "user" else "Samvya Counselor" }}
+              </div>
+              {{ msg.content }}
+            </div>
+          {% endfor %}
+        {% else %}
+          <p style="color:var(--text-muted); font-style:italic;">No conversation messages recorded for this session.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <footer class="report-footer">
+      <p>Confidential Mental Wellness Assessment &bull; Generated by Samvya Multi-Modal AI System</p>
+      <p style="margin-top:4px;">Samvya provides supportive conversational check-ins and does not provide formal medical diagnosis or emergency psychiatric intervention.</p>
+    </footer>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function copyShareLink() {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        const textSpan = document.getElementById('copy-text');
+        textSpan.textContent = 'Copied!';
+        setTimeout(() => { textSpan.textContent = 'Copy Link'; }, 2000);
+      }).catch(err => {
+        alert("Failed to copy link: " + err);
+      });
+    }
+  </script>
+</body>
+</html>

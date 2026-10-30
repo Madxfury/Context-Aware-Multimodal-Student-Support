@@ -1,0 +1,15 @@
+# Local runtime verified with Python 3.10.11
+Flask==2.0.1
+Werkzeug==2.0.3
+torch==2.9.0
+torchvision==0.24.0
+timm==1.0.21
+numpy==2.2.6
+pandas==2.2.2
+pydantic==2.12.3
+opencv-python-headless==4.14.0.94
+Pillow==11.3.0
+python-dotenv==1.0.1
+groq==1.1.2
+sarvamai==0.1.27
+elevenlabs==2.43.0
