@@ -5,6 +5,7 @@ import base64
 import io
 import time
 
+
 # Must be set BEFORE importing torch on Apple Silicon
 if platform.system() == "Darwin":
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
