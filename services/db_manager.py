@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+from services.india_support import refresh_saved_referral
+
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "counsellor.db")
 
 class DatabaseManager:
@@ -47,11 +49,21 @@ class DatabaseManager:
                 interventions_used TEXT,
                 stress_trajectory TEXT,
                 average_hr REAL,
+                wearable_summary TEXT,
+                camera_summary TEXT,
+                counsellor_brief TEXT,
                 transcript TEXT,
                 summary_insight TEXT,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
             """)
+            columns = {column["name"] for column in cursor.execute("PRAGMA table_info(sessions)")}
+            if "wearable_summary" not in columns:
+                cursor.execute("ALTER TABLE sessions ADD COLUMN wearable_summary TEXT")
+            if "camera_summary" not in columns:
+                cursor.execute("ALTER TABLE sessions ADD COLUMN camera_summary TEXT")
+            if "counsellor_brief" not in columns:
+                cursor.execute("ALTER TABLE sessions ADD COLUMN counsellor_brief TEXT")
             conn.commit()
 
     def get_or_create_user(self, name: str, role: Optional[str] = None, age: Optional[int] = None, notes: Optional[str] = None) -> Dict[str, Any]:
@@ -102,14 +114,26 @@ class DatabaseManager:
             transcript_json = json.dumps(session_data.get("transcript", []))
             interventions_json = json.dumps(session_data.get("interventions_used", []))
             stress_trajectory_json = json.dumps(session_data.get("stress_trajectory", []))
+            wearable_summary = session_data.get("wearable_summary")
+            wearable_json = json.dumps(wearable_summary) if wearable_summary is not None else None
+            camera_summary = session_data.get("camera_summary")
+            camera_json = json.dumps(camera_summary) if camera_summary is not None else None
+            brief = session_data.get("counsellor_brief")
+            brief_json = json.dumps(brief, ensure_ascii=False) if brief is not None else None
             
             cursor.execute("""
                 INSERT OR REPLACE INTO sessions (
                     session_id, user_id, locked_emotion, confidence,
                     mental_health_score, risk_level, primary_concern,
                     interventions_used, stress_trajectory, average_hr,
-                    transcript, summary_insight, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM sessions WHERE session_id = ?), CURRENT_TIMESTAMP))
+                    transcript, summary_insight, wearable_summary, camera_summary, counsellor_brief, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    COALESCE(?, (SELECT wearable_summary FROM sessions WHERE session_id = ?)),
+                    COALESCE(?, (SELECT camera_summary FROM sessions WHERE session_id = ?)),
+                    COALESCE(?, (SELECT counsellor_brief FROM sessions WHERE session_id = ?)),
+                    COALESCE((SELECT created_at FROM sessions WHERE session_id = ?), CURRENT_TIMESTAMP)
+                )
             """, (
                 session_data.get("session_id"),
                 session_data.get("user_id"),
@@ -123,6 +147,12 @@ class DatabaseManager:
                 session_data.get("average_hr"),
                 transcript_json,
                 session_data.get("summary_insight"),
+                wearable_json,
+                session_data.get("session_id"),
+                camera_json,
+                session_data.get("session_id"),
+                brief_json,
+                session_data.get("session_id"),
                 session_data.get("session_id")
             ))
             
@@ -132,6 +162,12 @@ class DatabaseManager:
                 
             conn.commit()
             return True
+
+    def save_counsellor_brief(self, session_id: str, brief: Dict[str, Any]) -> None:
+        with self._get_connection() as conn:
+            conn.execute("UPDATE sessions SET counsellor_brief = ? WHERE session_id = ?",
+                         (json.dumps(brief, ensure_ascii=False), session_id))
+            conn.commit()
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         with self._get_connection() as conn:
@@ -146,6 +182,9 @@ class DatabaseManager:
             if not row:
                 return None
             data = dict(row)
+            data["wearable_summary"] = json.loads(data["wearable_summary"]) if data["wearable_summary"] else None
+            data["camera_summary"] = json.loads(data["camera_summary"]) if data.get("camera_summary") else None
+            data["counsellor_brief"] = json.loads(data["counsellor_brief"]) if data.get("counsellor_brief") else None
             try:
                 data["transcript"] = json.loads(data["transcript"]) if data["transcript"] else []
             except Exception:
@@ -158,6 +197,11 @@ class DatabaseManager:
                 data["stress_trajectory"] = json.loads(data["stress_trajectory"]) if data["stress_trajectory"] else []
             except Exception:
                 data["stress_trajectory"] = []
+            if isinstance(data["transcript"], list):
+                for message in data["transcript"]:
+                    if isinstance(message, dict) and message.get("role") in {"assistant", "bot"}:
+                        message["content"] = refresh_saved_referral(message.get("content"))
+            data["summary_insight"] = refresh_saved_referral(data["summary_insight"])
             return data
 
     def get_user_sessions(self, user_id: int) -> List[Dict[str, Any]]:
@@ -171,7 +215,10 @@ class DatabaseManager:
                 WHERE user_id = ?
                 ORDER BY created_at DESC
             """, (user_id,))
-            return [dict(row) for row in cursor.fetchall()]
+            sessions = [dict(row) for row in cursor.fetchall()]
+            for session in sessions:
+                session["summary_insight"] = refresh_saved_referral(session["summary_insight"])
+            return sessions
 
     def get_user_recent_context(self, user_id: int, limit: int = 3) -> str:
         """

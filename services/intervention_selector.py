@@ -20,7 +20,8 @@ class RuleBasedInterventionSelector:
     
     def __init__(self):
         self.version = "rule-based-v1"
-        self.high_stress_threshold = 60.0
+        # S_t is the BiLSTM stress-class probability (0-1), not a 0-100 score.
+        self.high_stress_threshold = 0.6
 
     def select(self, css: ContextualStudentState) -> InterventionSelection:
         """

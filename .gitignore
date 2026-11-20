@@ -42,3 +42,15 @@ utilities/utilities/
 traintestsplit/
 .coverage
 htmlcov/
+
+# Local editor / assistant settings
+.claude/
+.vscode/
+
+# Report material produced locally (personal recordings, screenshots, PDFs);
+# selected screenshots live in docs/screenshots
+report_assets/
+report_jobs/data/
+
+# Full-flash image of the previous board firmware (binary, may hold device settings)
+firmware/backup/

@@ -56,15 +56,24 @@ class TestStep8(unittest.TestCase):
     def test_elevated_stress(self):
         """5. Elevated physiological stress -> grounding_breathing"""
         css = self.base_css.model_copy()
-        css.current_stress = 80.0
+        css.current_stress = 0.8
         res = self.selector.select(css)
         self.assertEqual(res.intervention, "grounding_breathing")
+
+    def test_steady_high_stress_probability(self):
+        """S_t is a probability: a steady 0.99 is elevated, a steady 0.3 is not."""
+        css = self.base_css.model_copy()
+        css.current_stress, css.stress_change = 0.99, 0.0
+        res = self.selector.select(css)
+        self.assertEqual((res.intervention, res.reason), ("grounding_breathing", "Physiological stress is elevated."))
+        css.current_stress = 0.3
+        self.assertEqual(self.selector.select(css).intervention, "supportive_check_in")
 
     def test_increasing_stress(self):
         """6. Increasing physiological stress -> grounding_breathing"""
         css = self.base_css.model_copy()
-        css.current_stress = 50.0
-        css.stress_change = 5.0
+        css.current_stress = 0.5
+        css.stress_change = 0.05
         res = self.selector.select(css)
         self.assertEqual(res.intervention, "grounding_breathing")
 
@@ -79,7 +88,7 @@ class TestStep8(unittest.TestCase):
         """8. Safety takes precedence over all other interventions."""
         css = self.base_css.model_copy()
         css.current_nlp = NLPResult(intent="safety_concern")
-        css.current_stress = 100.0  # Would otherwise be grounding_breathing
+        css.current_stress = 1.0  # Would otherwise be grounding_breathing
         css.current_emotion = "Sad" # Would otherwise be emotional_validation
         res = self.selector.select(css)
         self.assertEqual(res.intervention, "safety_support")

@@ -1,286 +1,200 @@
+{% from "_ui.html" import icon, brand %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Samvya — Wellness Session Report #{{ session.session_id }}</title>
-  <link rel="stylesheet" href="/static/css/style.css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <style>
-    body {
-      overflow-y: auto !important;
-      height: auto !important;
-      min-height: 100vh;
-      background: #030712;
-      color: #f9fafb;
-      padding: 30px 15px;
-    }
-    .share-container {
-      max-width: 860px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 25px;
-    }
-    .report-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 15px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .report-brand h1 {
-      font-size: 1.8rem;
-      background: linear-gradient(135deg, #6366f1, #a855f7);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 4px;
-    }
-    .report-actions {
-      display: flex;
-      gap: 12px;
-    }
-    .btn-action {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
-      border-radius: 12px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.05);
-      color: #fff;
-      transition: all 0.2s ease;
-      text-decoration: none;
-    }
-    .btn-action:hover {
-      background: rgba(255,255,255,0.12);
-      transform: translateY(-1px);
-    }
-    .btn-action.primary {
-      background: linear-gradient(135deg, #6366f1, #a855f7);
-      border: none;
-    }
-    .grid-summary {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 18px;
-    }
-    .stat-card {
-      padding: 22px;
-      border-radius: 18px;
-      background: rgba(17, 24, 39, 0.65);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .stat-label {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #9ca3af;
-    }
-    .stat-value {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #fff;
-    }
-    .badge-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      width: fit-content;
-    }
-    .badge-normal { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-    .badge-high { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .badge-moderate { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-
-    .transcript-box {
-      padding: 24px;
-      border-radius: 18px;
-      background: rgba(17, 24, 39, 0.65);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-    }
-    .transcript-box h2 {
-      font-size: 1.25rem;
-      margin-bottom: 18px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .transcript-messages {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      max-height: 500px;
-      overflow-y: auto;
-      padding-right: 8px;
-    }
-    .report-bubble {
-      padding: 14px 18px;
-      border-radius: 16px;
-      line-height: 1.5;
-      font-size: 0.95rem;
-      max-width: 85%;
-    }
-    .report-bubble.user {
-      align-self: flex-end;
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
-      color: #fff;
-      border-bottom-right-radius: 4px;
-    }
-    .report-bubble.assistant, .report-bubble.bot {
-      align-self: flex-start;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #e5e7eb;
-      border-bottom-left-radius: 4px;
-    }
-    .report-footer {
-      text-align: center;
-      font-size: 0.8rem;
-      color: #6b7280;
-      padding-top: 15px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    @media print {
-      body { background: #fff !important; color: #111 !important; }
-      .stat-card, .transcript-box { background: #fff !important; border: 1px solid #ddd !important; }
-      .report-actions { display: none !important; }
-      .report-bubble.assistant { background: #f3f4f6 !important; color: #111 !important; }
-      .report-bubble.user { background: #e0e7ff !important; color: #111 !important; }
-    }
-  </style>
-  <link rel="stylesheet" href="/static/css/neumorphism.css" />
+  <title>Wellbeing Check-in Report · Samvya</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/samvya-logo.png') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
-<body>
-  <div class="share-container">
-    
-    <header class="report-header">
-      <div class="report-brand">
-        <h1>Samvya Wellness Check-in Report</h1>
-        <p style="color:var(--text-muted); font-size:0.9rem;">
-          Session ID: <code>{{ session.session_id }}</code> &bull; {{ session.created_at }}
-        </p>
-      </div>
-      <div class="report-actions">
-        <a href="/" class="btn-action"><i data-lucide="arrow-left"></i> Home</a>
-        <button class="btn-action" onclick="window.print()"><i data-lucide="printer"></i> Print / PDF</button>
-        <button class="btn-action primary" id="btn-copy-link" onclick="copyShareLink()">
-          <i data-lucide="share-2"></i> <span id="copy-text">Copy Link</span>
-        </button>
-      </div>
-    </header>
+<body class="report-body">
+  <header class="site-header">
+    <div class="frame header-inner">
+      {{ brand() }}
+      <a href="/" class="button quiet">{{ icon('arrow-left') }} Back to Samvya</a>
+    </div>
+  </header>
 
-    <!-- User Information Strip -->
-    <div class="stat-card" style="border-left: 4px solid var(--accent, #6366f1);">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <div>
-          <span class="stat-label">Client Details</span>
-          <h2 style="font-size:1.35rem; margin-top:3px;">
-            {{ session.user_name or "Anonymous Client" }}
-            {% if session.user_role %}<span style="font-size:0.9rem; font-weight:normal; color:var(--text-muted);">({{ session.user_role }}{% if session.user_age %}, Age {{ session.user_age }}{% endif %})</span>{% endif %}
-          </h2>
-        </div>
-        {% if session.primary_concern %}
-        <div>
-          <span class="stat-label">Primary Concern / Topic</span>
-          <div style="font-weight:500; font-size:1rem; color:var(--text);">{{ session.primary_concern }}</div>
-        </div>
-        {% endif %}
-      </div>
+  <main class="report-page">
+    <div class="report-toolbar report-actions">
+      <button class="button secondary" type="button" onclick="window.print()">{{ icon('printer') }} Print or save PDF</button>
+      <button class="button primary" type="button" onclick="copyShareLink()">{{ icon('share-2') }} <span id="copy-text" role="status">Copy link</span></button>
     </div>
 
-    <!-- Quick Stats Grid -->
-    <div class="grid-summary">
-      <div class="stat-card">
-        <span class="stat-label">Dominant Facial Emotion</span>
-        <div class="stat-value" style="display:flex; align-items:center; gap:8px;">
-          <span>{{ session.locked_emotion or "Neutral" }}</span>
-          {% if session.confidence %}<span style="font-size:0.95rem; font-weight:normal; color:var(--text-muted);">({{ session.confidence }}% conf.)</span>{% endif %}
+    <article class="report-sheet" aria-labelledby="report-title">
+      <header class="report-letterhead">
+        <img class="letterhead-institution" src="{{ url_for('static', filename='images/somaiya-logo.png') }}" width="386" height="113"
+             alt="Somaiya Vidyavihar University, K J Somaiya School of Engineering" />
+        <div class="letterhead-product">
+          <img src="{{ url_for('static', filename='images/samvya-logo.png') }}" width="46" height="46" alt="" />
+          <div>
+            <strong>Samvya<span class="brand-dot">.</span></strong>
+            <span class="letterhead-tagline">AI student wellbeing companion</span>
+          </div>
         </div>
+      </header>
+
+      <div class="report-title-block">
+        <p class="eyebrow">{{ icon('file-text') }} STUDENT WELLBEING CHECK-IN REPORT</p>
+        <h1 id="report-title">Wellbeing check-in</h1>
+        <dl class="report-facts">
+          <div><dt>Student</dt><dd>{{ session.user_name or "Guest" }}</dd></div>
+          <div><dt>Role / age</dt><dd>{{ session.user_role or "Not given" }}{% if session.user_age %} · {{ session.user_age }} years{% endif %}</dd></div>
+          <div><dt>Date and time</dt><dd><time id="report-time" datetime="{{ session.created_at|replace(' ', 'T') }}Z">{{ session.created_at }} UTC</time></dd></div>
+          <div><dt>Report ID</dt><dd><code>{{ session.session_id }}</code></dd></div>
+          {% if session.primary_concern %}<div class="report-facts-wide"><dt>Topic raised</dt><dd>{{ session.primary_concern }}</dd></div>{% endif %}
+        </dl>
       </div>
 
-      <div class="stat-card">
-        <span class="stat-label">Mental Health Score (MS)</span>
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <div class="stat-value">{{ session.mental_health_score or 0.0 }}<span style="font-size:0.9rem; color:var(--text-muted);">/100</span></div>
-          <span class="badge-pill {% if session.risk_level == 'high' or session.risk_level == 'Very High Risk' or session.risk_level == 'High Risk' %}badge-high{% elif session.risk_level == 'Moderate Risk' %}badge-moderate{% else %}badge-normal{% endif %}">
-            {{ session.risk_level or "Normal" }}
-          </span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <span class="stat-label">Physiological Vitals</span>
-        <div class="stat-value" style="font-size:1.25rem;">
-          {% if session.average_hr %}
-            Heart Rate: {{ session.average_hr|round(1) }} BPM
-          {% else %}
-            Standard Baseline
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <!-- Wellness Insight -->
-    {% if session.summary_insight %}
-    <div class="stat-card" style="background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.25);">
-      <span class="stat-label" style="color:#a5b4fc;">Counselor Clinical & Wellness Insight</span>
-      <p style="font-size:1.05rem; line-height:1.6; margin-top:6px; color:#f3f4f6;">
-        {{ session.summary_insight }}
-      </p>
-    </div>
-    {% endif %}
-
-    <!-- Transcript Box -->
-    <div class="transcript-box">
-      <h2><i data-lucide="message-square"></i> Session Dialogue Transcript</h2>
-      <div class="transcript-messages">
-        {% if session.transcript and session.transcript|length > 0 %}
-          {% for msg in session.transcript %}
-            <div class="report-bubble {{ msg.role }}">
-              <div style="font-size:0.75rem; text-transform:uppercase; margin-bottom:4px; opacity:0.6;">
-                {{ "Client" if msg.role == "user" else "Samvya Counselor" }}
-              </div>
-              {{ msg.content }}
+      {% set brief = session.counsellor_brief if session.counsellor_brief else None %}
+      <section class="report-section" aria-labelledby="summary-heading">
+        <h2 id="summary-heading"><span class="section-number">1</span> Counsellor summary</h2>
+        {% if brief %}
+          {% set safety = brief['safety'] %}
+          {% if safety['flagged'] %}
+            <div class="report-alert" role="note">
+              <p><strong>{{ icon('shield') }} Safety concern raised.</strong> Samvya's safety rules flagged {{ safety['messages'] }} student {{ 'message' if safety['messages'] == 1 else 'messages' }} as a possible risk of self-harm.
+                {% if safety['support_shown'] %}Samvya shared India support contacts (Tele MANAS 14416, emergency 112) during the check-in.{% else %}No support contacts were shown during the check-in.{% endif %} Please follow up promptly.</p>
+              {% for statement in safety['statements'] %}<blockquote>“{{ statement }}”</blockquote>{% endfor %}
             </div>
-          {% endfor %}
+          {% else %}
+            <p class="report-safe">{{ icon('check-circle') }} No safety concern was flagged by Samvya's safety rules. These rules can miss indirect statements, so read the concerns below as well.</p>
+          {% endif %}
+          <p class="report-summary">{{ brief.overview }}</p>
+          <div class="brief-grid">
+            {% for field, title in [('presenting_concerns', 'Main concerns'), ('student_described_feelings', 'How the student described their feelings'), ('context', 'Circumstances mentioned'), ('coping_and_strengths', 'Coping and strengths'), ('support_offered', 'Support Samvya offered'), ('suggested_follow_up', 'Suggested follow-up for the counsellor')] %}
+              <div class="brief-card">
+                <h3>{{ title }}</h3>
+                {% if brief[field] %}
+                  <ul>{% for item in brief[field] %}<li>{{ item }}</li>{% endfor %}</ul>
+                {% else %}
+                  <p class="report-muted">Not discussed.</p>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+          {% if brief.key_statements %}
+            <div class="brief-quotes">
+              <h3>In the student's words</h3>
+              {% for quote in brief.key_statements %}<blockquote>“{{ quote }}”</blockquote>{% endfor %}
+            </div>
+          {% endif %}
+          <p class="report-note">AI-generated from {{ brief.student_messages }} student {{ 'message' if brief.student_messages == 1 else 'messages' }} and {{ brief.samvya_messages }} Samvya {{ 'reply' if brief.samvya_messages == 1 else 'replies' }}. It organises what the student said and is not a diagnosis; check it before acting on it. Quotes are checked word for word against the student's messages. The full conversation is stored with the session record and is not included in this report.</p>
+        {% elif session.transcript and session.transcript|selectattr('role', 'equalto', 'user')|list %}
+          {% if session.summary_insight %}<p class="report-summary">{{ session.summary_insight }}</p>{% endif %}
+          <p class="report-muted">A detailed counsellor summary could not be generated because the AI service was unavailable. It is created automatically the next time this report is opened.</p>
         {% else %}
-          <p style="color:var(--text-muted); font-style:italic;">No conversation messages recorded for this session.</p>
+          {% if session.summary_insight %}<p class="report-summary">{{ session.summary_insight }}</p>{% endif %}
+          <p class="report-muted">No conversation messages were recorded for this check-in.</p>
         {% endif %}
-      </div>
-    </div>
+      </section>
 
-    <footer class="report-footer">
-      <p>Confidential Mental Wellness Assessment &bull; Generated by Samvya Multi-Modal AI System</p>
-      <p style="margin-top:4px;">Samvya provides supportive conversational check-ins and does not provide formal medical diagnosis or emergency psychiatric intervention.</p>
-    </footer>
+      {% set wearable = session.wearable_summary if session.wearable_summary else None %}
+      {% set trends = wearable.trends if wearable and wearable.trends is defined and wearable.trends else {} %}
+      <section class="report-section" aria-labelledby="signals-heading">
+        <h2 id="signals-heading"><span class="section-number">2</span> Check-in signals</h2>
+        <div class="grid-summary">
+          {% set camera = session.camera_summary if session.camera_summary else None %}
+          <div class="stat-card">
+            <p class="stat-label">{{ icon('scan-face') }} Camera cue</p>
+            <p class="stat-value">{{ session.locked_emotion or "Not captured" }}</p>
+            {% if camera and camera.checkin.frames %}
+              <p class="stat-detail">{% if camera.checkin['clear'] %}{{ camera.checkin.confidence|round|int }}% model confidence over {{ camera.checkin.frames }} clear views{% else %}The model was not confident enough ({{ camera.checkin.confidence|round|int }}%; a reading needs {{ camera.clear_confidence }}%){% endif %}</p>
+            {% elif session.confidence is not none %}<p class="stat-detail">{{ session.confidence|round|int }}% model confidence</p>{% endif %}
+          </div>
+          <div class="stat-card">
+            <p class="stat-label">{{ icon('compass') }} Camera wellbeing score</p>
+            <p class="stat-value">{% if session.mental_health_score is not none %}{{ session.mental_health_score|round(1) }} / 100{% else %}Not captured{% endif %}</p>
+            {% if session.risk_level %}<p class="stat-detail">Risk estimate: {{ session.risk_level }}</p>{% endif %}
+          </div>
+          <div class="stat-card">
+            {% if wearable %}
+              <p class="stat-label">{{ icon('activity') }} USB wearable</p>
+              <p class="stat-value">{% if wearable.average_hr is not none %}{{ wearable.average_hr|round(1) }} BPM avg.{% else %}Pulse not measured{% endif %}</p>
+              <p class="stat-detail">{% if trends %}{{ wearable.sample_count // 60 }} min {{ wearable.sample_count % 60 }} s of wearable data{% else %}{{ wearable.sample_count }} samples captured{% endif %}</p>
+            {% elif session.average_hr %}
+              <p class="stat-label">{{ icon('layers') }} Simulated wearable</p>
+              <p class="stat-value">{{ session.average_hr|round(1) }} BPM</p>
+              <p class="stat-detail">Historical simulation</p>
+            {% else %}
+              <p class="stat-label">{{ icon('activity') }} USB wearable</p>
+              <p class="stat-value">No readings captured</p>
+            {% endif %}
+          </div>
+        </div>
+        {% if camera and camera.conversation is defined %}
+          {% set talk = camera.conversation %}
+          <table class="report-table report-camera">
+            <tbody>
+              <tr><th scope="row">Camera during the conversation</th><td>{{ talk.frames }} clear {{ 'view' if talk.frames == 1 else 'views' }} over {{ talk.minutes }} min · {% if talk['clear'] %}mostly {{ talk.emotion }} expression ({{ talk.confidence|round|int }}% model confidence){% else %}expression unclear{% endif %}</td></tr>
+              {% if talk.timeline is defined and talk.timeline %}<tr><th scope="row">Minute by minute</th><td>{% for slot in talk.timeline %}{{ slot.minute }}: {{ slot.emotion or 'unclear' }}{% if not loop.last %} · {% endif %}{% endfor %}</td></tr>{% endif %}
+              <tr><th scope="row">Facial movement vs check-in</th><td>{% if talk.changes %}{{ talk.changes|join(', ')|capitalize }}{% else %}No clear change{% endif %}</td></tr>
+            </tbody>
+          </table>
+        {% endif %}
+        {% if camera %}
+          {% if camera.clear_confidence == 60 %}
+          <p class="report-note">Camera cues describe facial expression only, from clear views, read by two models together (Swin-FANE and HSEmotion). When they are at least 60% confident they were right 82% of the time on faces they never saw in training and 91–95% of the time on webcam test frames; below that the cue is reported as unclear.</p>
+          {% else %}
+          <p class="report-note">Camera cues describe facial expression only, from clear views. On faces it never saw in training, the model is right about 68% of the time, and 81% of the time when it is at least {{ camera.clear_confidence }}% confident; below that the cue is reported as unclear.</p>
+          {% endif %}
+        {% endif %}
+      </section>
 
-  </div>
+      {% if wearable %}
+      <section class="report-section" aria-labelledby="wearable-heading">
+        <h2 id="wearable-heading"><span class="section-number">3</span> Wearable readings</h2>
+        <table class="report-table">
+          <thead><tr><th scope="col">Measure</th><th scope="col">Reading</th></tr></thead>
+          <tbody>
+            {% if wearable.average_hr is not none %}<tr><th scope="row">Average pulse</th><td>{{ wearable.average_hr|round(1) }} BPM</td></tr>{% endif %}
+            {% if wearable.min_hr is defined and wearable.min_hr is not none %}<tr><th scope="row">Pulse range</th><td>{{ wearable.min_hr|round|int }}–{{ wearable.max_hr|round|int }} BPM, measured {{ wearable.pulse_coverage }}% of the time (only while the hand is still)</td></tr>{% endif %}
+            {% if trends.pulse is defined %}<tr><th scope="row">Pulse vs start of check-in</th><td>{{ '%+.0f'|format(trends.pulse.change) }} BPM{% if trends.pulse.trend %}, {{ trends.pulse.trend.direction }} at the end{% endif %}</td></tr>{% endif %}
+            {% if wearable.average_spo2 is defined and wearable.average_spo2 is not none %}<tr><th scope="row">Average SpO₂ (uncalibrated estimate)</th><td>{{ wearable.average_spo2|round(1) }} %</td></tr>{% elif trends %}<tr><th scope="row">SpO₂</th><td>Not measured at this sensor position (works on the inner wrist or a fingertip)</td></tr>{% endif %}
+            <tr><th scope="row">Last skin temperature</th><td>{% if wearable.temperature_c is defined %}{{ wearable.temperature_c|round(2) }} °C{% else %}Not recorded{% endif %}</td></tr>
+            {% if trends.temperature is defined %}<tr><th scope="row">Skin temperature vs start</th><td>{{ '%+.2f'|format(trends.temperature.change) }} °C</td></tr>{% endif %}
+            <tr><th scope="row">Last GSR</th><td>{% if wearable.gsr_mv is defined %}{{ wearable.gsr_mv|int }} mV · {% endif %}{% if wearable.gsr_adc is defined %}{{ wearable.gsr_adc|int }} ADC{% else %}Not recorded{% endif %}</td></tr>
+            {% if trends.gsr is defined and trends.gsr.change_percent is not none %}<tr><th scope="row">GSR vs start</th><td>{{ '%+.1f'|format(trends.gsr.change_percent) }} %{% if trends.gsr.skin_conductance_vs_start is defined and trends.gsr.skin_conductance_vs_start %} · skin conductance {{ {'higher': 'higher than', 'lower': 'lower than'}.get(trends.gsr.skin_conductance_vs_start, 'similar to') }} at the start{% endif %}</td></tr>{% endif %}
+            {% if trends.movement is defined %}<tr><th scope="row">Hand still</th><td>{{ trends.movement.still_percent }}% of the check-in</td></tr>{% endif %}
+            {% if wearable.motion is defined %}<tr><th scope="row">Last movement</th><td>{{ wearable.motion|round(2) }} m/s²</td></tr>{% endif %}
+          </tbody>
+          {% if wearable.ir is defined or wearable.accel is defined or wearable.gyro is defined %}
+          <tbody class="report-table-details">
+            <tr><th scope="rowgroup" colspan="2">Sensor details</th></tr>
+            {% if wearable.ir is defined %}<tr><th scope="row">Last optical IR</th><td>{{ wearable.ir|int }} counts</td></tr>{% endif %}
+            {% if wearable.accel is defined %}<tr><th scope="row">Last accelerometer X / Y / Z</th><td>{{ wearable.accel|axes }} m/s²</td></tr>{% endif %}
+            {% if wearable.gyro is defined %}<tr><th scope="row">Last gyroscope X / Y / Z</th><td>{{ wearable.gyro|axes }} rad/s</td></tr>{% endif %}
+          </tbody>
+          {% endif %}
+        </table>
+        <p class="report-note">Pulse is measured from the optical waveform only while the hand is still. SpO₂ is an uncalibrated estimate. The GSR voltage falls when skin conductance rises. Skin temperature is normally a few degrees below body temperature.</p>
+      </section>
+      {% endif %}
 
+      <footer class="report-footer">
+        <p><strong>Important:</strong> Samvya is a student research prototype, not a medical device. Camera cues, scores and wearable readings are research outputs and cannot provide a diagnosis. Please speak to a qualified professional about any health concern.</p>
+        <p class="report-origin">Samvya · K J Somaiya School of Engineering, Somaiya Vidyavihar University · Report <code>{{ session.session_id }}</code></p>
+      </footer>
+    </article>
+  </main>
   <script>
-    lucide.createIcons();
+    const reportTime = document.getElementById('report-time');
+    const date = new Date(reportTime.dateTime);
+    if (!Number.isNaN(date.getTime())) {
+      reportTime.textContent = new Intl.DateTimeFormat('en-IN', {
+        dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata'
+      }).format(date) + ' IST';
+    }
 
-    function copyShareLink() {
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        const textSpan = document.getElementById('copy-text');
-        textSpan.textContent = 'Copied!';
-        setTimeout(() => { textSpan.textContent = 'Copy Link'; }, 2000);
-      }).catch(err => {
-        alert("Failed to copy link: " + err);
-      });
+    async function copyShareLink() {
+      const label = document.getElementById('copy-text');
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        label.textContent = 'Link copied';
+      } catch {
+        label.textContent = 'Copy from the address bar';
+      }
     }
   </script>
 </body>

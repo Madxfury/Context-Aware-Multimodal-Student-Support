@@ -127,7 +127,14 @@ class LLMGuardrailService:
             r"(?i)\b(your\s+(physiological|stress|sensor)\s+(data|score|level)\s+shows)\b",
             r"(?i)\b(I\s+detected\s+that\s+you\s+are\s+physiologically\s+stressed)\b",
             r"(?i)\b(your\s+mental\s+health\s+score\s+is)\b",
-            r"(?i)\b(your\s+heart\s+rate\s+is)\b"
+            # Reporting a reading ("your heart rate is 72 BPM") is allowed; judging it is not.
+            r"(?i)\byour\s+(?:heart\s*rate|pulse|oxygen(?:\s+level)?|spo2|temperature)\s+(?:is|seems|looks)\s+"
+            r"(?:\w+\s+){0,2}(?:high|elevated|racing|fast|low|slow|abnormal|irregular|dangerous|worrying|concerning|unhealthy)\b",
+            # GSR changes may be reported as skin conductance, not read as a mental state
+            # (seen in testing: "skin conductance is higher now - often a sign of ... stress").
+            r"(?i)\b(?:gsr|skin\s+conductance|electrodermal|sweat(?:ing)?)\b[^.!?]{0,160}?"
+            r"\b(?:sign|signal|signs|indicat\w*|suggest\w*|means?|reflect\w*|shows?)\b[^.!?]{0,80}?"
+            r"\b(?:arousal|stress\w*|anxi\w*|nervous\w*|tense|tension|fear\w*|panic\w*|worr\w*)\b"
         ]
         
         for pattern in leakage_patterns:

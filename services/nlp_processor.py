@@ -1,56 +1,71 @@
 import re
 from typing import Optional, Dict, Tuple, List
+from unicodedata import normalize
 from schemas.nlp import NLPResult
-from services.nlp_rules import INTENT_RULES, SENTIMENT_RULES, COMBINATION_RULES, NEGATION_WORDS, WEIGHTS
+from services.nlp_rules import (
+    INTENT_RULES, SENTIMENT_RULES, COMBINATION_RULES, NEGATION_WORDS, WEIGHTS,
+    EXCLUDED_PHRASES, NEGATION_WINDOWS,
+)
+
+# Negation does not carry across punctuation or "but": in "I don't know, I want to die"
+# the "don't" belongs to the first clause.
+CLAUSE_BREAK = re.compile(r"[,.;:!?]|\bbut\b")
+# Typographic apostrophes from phone and Mac keyboards.
+APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "`": "'"})
+
 
 class NLPProcessorService:
     """
     Deterministic Rule-Based NLP Processor.
-    Classifies student intents and sentiments using weighted keywords, 
+    Classifies student intents and sentiments using weighted keywords,
     phrases, and combinations with negation handling.
     """
     def __init__(self):
         self.model_available = False # True external ML model not used
-        
+
     def _tokenize(self, text: str) -> List[str]:
         # Lowercase and remove punctuation except for basic apostrophes
         text = text.lower()
         text = re.sub(r'[^\w\s\']', ' ', text)
         return text.split()
 
-    def _is_negated(self, tokens: List[str], match_index: int, window: int = 3) -> bool:
+    def _normalize(self, text: str) -> str:
+        text = normalize("NFKC", text).translate(APOSTROPHES).lower()
+        for phrase in EXCLUDED_PHRASES:
+            text = text.replace(phrase, " ")
+        return " ".join(text.split())
+
+    def _is_negated(self, text: str, position: int, window: int = 3) -> bool:
         """
-        Check if any negation word appears within `window` tokens BEFORE the match_index.
+        Check if a negation word appears within `window` tokens before `position`
+        in the same clause.
         """
-        start = max(0, match_index - window)
-        preceding_tokens = tokens[start:match_index]
-        for token in preceding_tokens:
-            if token in NEGATION_WORDS:
-                return True
-        return False
+        prefix = text[:position]
+        breaks = [match.end() for match in CLAUSE_BREAK.finditer(prefix)]
+        if breaks:
+            prefix = prefix[breaks[-1]:]
+        return any(token in NEGATION_WORDS for token in self._tokenize(prefix)[-window:])
 
     def _score_rules(self, text: str, rules_dict: Dict) -> Tuple[Dict[str, float], Dict[str, List[str]]]:
         """
         Scores intents or sentiments based on the rules_dict.
-        Returns (scores, matched_rules).
+        `text` must already be normalized. Returns (scores, matched_rules).
         """
         scores = {k: 0.0 for k in rules_dict.keys()}
         matched = {k: [] for k in rules_dict.keys()}
-        tokens = self._tokenize(text)
-        
+
         for category, rules in rules_dict.items():
-            # Keywords
+            window = NEGATION_WINDOWS.get(category, 3)
+            # Keywords match whole tokens (apostrophes count as part of a token).
             for word_list, weight_key in [
                 (rules.get("keywords", []), "keyword"),
                 (rules.get("strong_keywords", []), "strong_keyword")
             ]:
                 for word in word_list:
-                    # Check each occurrence of the word in tokens
-                    for i, token in enumerate(tokens):
-                        if token == word:
-                            if not self._is_negated(tokens, i):
-                                scores[category] += WEIGHTS[weight_key]
-                                matched[category].append(f"kw:{word}")
+                    for match in re.finditer(r"(?<![\w'])" + re.escape(word) + r"(?![\w'])", text):
+                        if not self._is_negated(text, match.start(), window):
+                            scores[category] += WEIGHTS[weight_key]
+                            matched[category].append(f"kw:{word}")
 
             # Phrases
             for phrase_list, weight_key in [
@@ -58,17 +73,9 @@ class NLPProcessorService:
                 (rules.get("strong_phrases", []), "strong_phrase")
             ]:
                 for phrase in phrase_list:
-                    # Find all occurrences of the phrase in the string
-                    # Use regex with word boundaries to ensure we don't match substrings of larger words
-                    pattern = r'\b' + re.escape(phrase) + r'\b'
-                    matches = list(re.finditer(pattern, text.lower()))
-                    for match in matches:
-                        # Map string index to token index approximately to check negation
-                        # Count spaces before the match to estimate token index
-                        preceding_text = text[:match.start()]
-                        approx_token_idx = len(self._tokenize(preceding_text))
-                        
-                        if not self._is_negated(tokens, approx_token_idx):
+                    # Word boundaries so a phrase does not match inside a larger word.
+                    for match in re.finditer(r'\b' + re.escape(phrase) + r'\b', text):
+                        if not self._is_negated(text, match.start(), window):
                             scores[category] += WEIGHTS[weight_key]
                             matched[category].append(f"ph:{phrase}")
 
@@ -78,7 +85,7 @@ class NLPProcessorService:
         """
         Boosts intent scores based on combination rules.
         """
-        text_lower = text.lower()
+        text_lower = text
         for rule in COMBINATION_RULES:
             # Check if at least one word from each sub-list is present
             all_groups_present = True
@@ -100,8 +107,8 @@ class NLPProcessorService:
         if not transcript or not transcript.strip():
             return NLPResult(intent="unknown", sentiment="unknown")
 
-        text = transcript.strip()
-        
+        text = self._normalize(transcript)
+
         # 1. Score Intents
         intent_scores, intent_matches = self._score_rules(text, INTENT_RULES)
         self._apply_combinations(text, intent_scores, intent_matches)

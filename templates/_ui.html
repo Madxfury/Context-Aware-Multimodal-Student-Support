@@ -1,0 +1,10 @@
+{% macro icon(name, classes='') -%}
+<svg class="icon{{ ' ' ~ classes if classes else '' }}" aria-hidden="true" focusable="false"><use href="{{ url_for('static', filename='images/icons.svg') }}#{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro brand() -%}
+<div class="brand">
+  <img src="{{ url_for('static', filename='images/samvya-logo.png') }}" width="36" height="36" alt="" />
+  <span>Samvya<span class="brand-dot">.</span></span>
+</div>
+{%- endmacro %}
