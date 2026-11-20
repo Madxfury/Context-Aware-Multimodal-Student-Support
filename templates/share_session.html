@@ -48,17 +48,25 @@
       </div>
 
       {% set brief = session.counsellor_brief if session.counsellor_brief else None %}
+      {% if safety and safety.flagged %}
+        <section class="report-alert{% if safety.urgent %} urgent{% endif %}" role="note" aria-labelledby="safety-heading">
+          <p id="safety-heading"><strong>{{ icon('shield') }} {% if safety.urgent %}Urgent: safety concern flagged{% else %}Concern flagged{% endif %}</strong>
+            Samvya's safety rules flagged {{ safety.messages }} student {{ 'message' if safety.messages == 1 else 'messages' }} in this check-in.
+            {% if safety.support_shown %}Samvya shared India support contacts (Tele MANAS 14416, emergency 112) during the check-in.{% else %}No support contacts were shown during the check-in.{% endif %}
+            {% if safety.urgent %}Please follow up with the student promptly.{% else %}Please follow up with the student.{% endif %}</p>
+          {% for category in safety.categories %}
+            <div class="safety-category">
+              <p class="safety-label">{{ category.label }} · {{ category.messages }} {{ 'message' if category.messages == 1 else 'messages' }}</p>
+              {% for statement in category.statements %}<blockquote>“{{ statement }}”</blockquote>{% endfor %}
+            </div>
+          {% endfor %}
+          <p class="safety-note">These flags come from fixed phrase rules, not from AI judgement. They are a prompt to read the conversation, not a diagnosis.</p>
+        </section>
+      {% endif %}
       <section class="report-section" aria-labelledby="summary-heading">
         <h2 id="summary-heading"><span class="section-number">1</span> Counsellor summary</h2>
         {% if brief %}
-          {% set safety = brief['safety'] %}
-          {% if safety['flagged'] %}
-            <div class="report-alert" role="note">
-              <p><strong>{{ icon('shield') }} Safety concern raised.</strong> Samvya's safety rules flagged {{ safety['messages'] }} student {{ 'message' if safety['messages'] == 1 else 'messages' }} as a possible risk of self-harm.
-                {% if safety['support_shown'] %}Samvya shared India support contacts (Tele MANAS 14416, emergency 112) during the check-in.{% else %}No support contacts were shown during the check-in.{% endif %} Please follow up promptly.</p>
-              {% for statement in safety['statements'] %}<blockquote>“{{ statement }}”</blockquote>{% endfor %}
-            </div>
-          {% else %}
+          {% if not (safety and safety.flagged) %}
             <p class="report-safe">{{ icon('check-circle') }} No safety concern was flagged by Samvya's safety rules. These rules can miss indirect statements, so read the concerns below as well.</p>
           {% endif %}
           <p class="report-summary">{{ brief.overview }}</p>

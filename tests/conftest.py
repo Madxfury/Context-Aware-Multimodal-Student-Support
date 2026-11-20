@@ -25,7 +25,10 @@ def _reset_voice_pause():
 
 @pytest.fixture(autouse=True)
 def _no_online_voice(monkeypatch):
-    """Tests never call Microsoft's online voices; a test that checks them replaces this."""
+    """Tests never call the online voices (Sarvam, Microsoft); a test that checks them replaces this."""
     import services.speech_synthesis as speech
     monkeypatch.setattr(speech, "edge_speech", lambda text, language, gender="female": None)
     monkeypatch.setattr(speech, "_edge_chunks", lambda text, language, gender="female": None)
+    monkeypatch.setattr(speech, "sarvam_speech", lambda text, language, gender="female": None)
+    monkeypatch.setattr(speech, "_sarvam_chunks", lambda text, language, gender="female": None)
+    monkeypatch.setattr(speech, "sarvam_paused_until", 0.0)

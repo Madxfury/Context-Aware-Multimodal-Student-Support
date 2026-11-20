@@ -107,15 +107,35 @@ def test_short_rate_limit_is_retried_and_reply_is_plain(chat_client):
 
 def test_provider_failure_is_an_error_not_a_counsellor_reply(chat_client):
     client, provider = chat_client
-    provider.chat.completions.create.side_effect = [rate_limited(), rate_limited()]
+    # Main model, both fallback models, then one short wait and the main model again.
+    provider.chat.completions.create.side_effect = [rate_limited()] * 4
     response = send(client, "I have an exam tomorrow.")
     assert response.status_code == 503
     assert "response" not in response.json
     assert "Wait a few seconds" in response.json["error"]
 
-    provider.chat.completions.create.side_effect = [rate_limited("30")]
+    provider.chat.completions.create.side_effect = [rate_limited("30")] * 3
     assert send(client, "Still there?").status_code == 503
-    assert provider.chat.completions.create.call_count == 3
+    assert provider.chat.completions.create.call_count == 7
+
+
+def test_rate_limited_main_model_falls_back_to_another_model(chat_client):
+    client, provider = chat_client
+    provider.chat.completions.create.side_effect = [rate_limited("30"), completion("Let's take it one step at a time.")]
+    response = send(client, "I have an exam tomorrow.")
+    assert response.status_code == 200
+    assert response.json["response"] == "Let's take it one step at a time."
+    first, second = provider.chat.completions.create.call_args_list
+    assert first.kwargs["model"] == app_module.GROQ_MODEL
+    assert second.kwargs["model"] == app_module.GROQ_FALLBACK_MODELS[0]
+
+
+def test_fallback_models_get_only_options_they_accept():
+    request = {"model": app_module.GROQ_MODEL, "messages": [], "reasoning_effort": "low"}
+    assert app_module.model_request(request, "openai/gpt-oss-20b")["reasoning_effort"] == "low"
+    other = app_module.model_request(request, "qwen/qwen3.8-27b")
+    assert "reasoning_effort" not in other and other["reasoning_format"] == "hidden"
+    assert request["model"] == app_module.GROQ_MODEL
 
 
 def test_support_marker_anywhere_adds_verified_contacts(chat_client):
@@ -132,6 +152,31 @@ def test_safety_messages_skip_the_model(chat_client):
     reply = send(client, "I feel suicidal").json["response"]
     assert "Are you safe right now?" in reply and "14416" in reply
     provider.chat.completions.create.assert_not_called()
+
+
+def test_safety_reply_is_spoken_in_the_chosen_voice(chat_client):
+    client, provider = chat_client
+    for voice in ("female", "male"):
+        response = client.post("/chat", json={"message": "I feel suicidal", "session_id": "voice-" + voice,
+                                              "defer_audio": True, "counsellor_voice": voice}).json
+        assert "Are you safe right now?" in response["response"]
+        assert app_module.speech_request(response["speech_ticket"]) == (response["response"], voice)
+    reply = client.post("/chat", json={"message": "मला जगायचं नाही", "session_id": "voice-mr", "defer_audio": True}).json
+    assert "14416" in reply["response"] and reply["speech_ticket"]
+    provider.chat.completions.create.assert_not_called()
+
+
+def test_save_returns_safety_flags_for_the_report(chat_client):
+    client, _ = chat_client
+    transcript = [{"role": "user", "content": "Honestly I am just a burden to my family"},
+                  {"role": "assistant", "content": "I'm here with you."}]
+    saved = client.post("/api/sessions/save", json={"session_id": "flagged", "transcript": transcript}).json
+    review = saved["safety_review"]
+    assert review["flagged"] and review["urgent"]
+    assert review["categories"][0]["id"] == "indirect_self_harm"
+    calm = client.post("/api/sessions/save", json={"session_id": "calm", "transcript": [
+        {"role": "user", "content": "Exams are stressful"}]}).json
+    assert calm["safety_review"]["flagged"] is False
 
 
 def test_requests_for_other_hosts_are_refused():
@@ -187,6 +232,10 @@ def test_reply_script_follows_the_student():
     assert not wrong_script("मुझे बहुत तनाव है", "मैं समझ सकती हूँ।")
     # English questions about Hindi words are not Hinglish.
     assert not wrong_script("How do you say thank you in Hindi?", "You can say धन्यवाद.")
+    # An English message answered in Hindi (seen after earlier Hindi turns) is regenerated.
+    assert wrong_script("What should I do before the exam morning?", "सुबह के लिए एक छोटी सी रूटीन रखो।")
+    assert not wrong_script("What does shanti mean?", "शांति means peace or calm.")
+    assert not wrong_script("Thank you, that helps.", "You're welcome. Good luck with your exams!")
 
 
 def test_hinglish_reply_in_devanagari_is_regenerated(chat_client):

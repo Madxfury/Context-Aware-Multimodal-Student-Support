@@ -1,0 +1,20 @@
+# Only the app itself goes into the Vercel function (see api/index.py).
+.venv/
+.env
+Models/
+DataSet/
+data/
+docs/
+firmware/
+report_assets/
+report_jobs/
+scripts/
+tests/
+utilities/
+requirements-dev.txt
+requirements-training.txt
+**/__pycache__/
+*.pth
+*.pt
+*.onnx
+*.db

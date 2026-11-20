@@ -95,7 +95,7 @@ def test_reports_without_a_brief_get_one_on_first_view(brief_app):
     app_module.db_manager.save_session({"session_id": "old-report", "transcript": risky, "summary_insight": "Old recap."})
     report = client.get("/session/old-report").get_data(as_text=True)
     assert provider.chat.completions.create.call_count == 1
-    assert "Safety concern raised." in report and "better off without me" in report
+    assert "Urgent: safety concern flagged" in report and "better off without me" in report
     assert app_module.db_manager.get_session("old-report")["counsellor_brief"]["safety"]["flagged"] is True
 
 
@@ -109,6 +109,13 @@ def test_brief_falls_back_when_the_provider_fails_or_judges_sensors(brief_app, m
     app_module.db_manager.save_session({"session_id": "no-brief", "transcript": TRANSCRIPT, "summary_insight": "Short recap."})
     report = client.get("/session/no-brief").get_data(as_text=True)
     assert "Short recap." in report and "could not be generated" in report
+    assert "safety concern flagged" not in report
+    # The safety flag does not depend on the AI summary: it is shown even when the brief fails.
+    risky = TRANSCRIPT + [{"role": "user", "content": "I feel suicidal and I wrote a suicide note"}]
+    app_module.db_manager.save_session({"session_id": "no-brief-risk", "transcript": risky, "summary_insight": "Short recap."})
+    report = client.get("/session/no-brief-risk").get_data(as_text=True)
+    assert "could not be generated" in report and "Urgent: safety concern flagged" in report
+    assert "Suicide or self-harm" in report and "I wrote a suicide note" in report
 
 
 def test_camera_reading_averages_both_expression_models(monkeypatch, tmp_path):

@@ -1296,7 +1296,41 @@ async function finishSessionAndShowReport() {
   showScreen('screen-results');
 }
 
+let safetyReview = null;   // Samvya's own safety flags for the report (services/risk_flags.py)
+
+function renderSafetyFlag() {
+  const box = document.getElementById('safety-flag');
+  const review = safetyReview;
+  if (!review || !review.flagged) {
+    box.hidden = true;
+    box.replaceChildren();
+    return;
+  }
+  const lead = document.createElement('p');
+  const title = document.createElement('strong');
+  title.textContent = review.urgent ? 'Urgent: safety concern flagged' : 'Concern flagged';
+  const count = review.messages === 1 ? '1 message' : review.messages + ' messages';
+  lead.append(title, ' Samvya flagged ' + count + ' in this check-in for a counsellor to follow up. ' +
+    (review.support_shown ? 'India support contacts (Tele MANAS 14416, emergency 112) were shared.' : ''));
+  const parts = [lead];
+  review.categories.forEach(category => {
+    const label = document.createElement('p');
+    label.className = 'safety-label';
+    label.textContent = category.label;
+    parts.push(label);
+    category.statements.forEach(statement => {
+      const quote = document.createElement('blockquote');
+      quote.textContent = '“' + statement + '”';
+      parts.push(quote);
+    });
+  });
+  box.classList.toggle('urgent', review.urgent);
+  box.replaceChildren(...parts);
+  box.hidden = false;
+}
+
 function renderReportScreen(summaryInsight) {
+  renderSafetyFlag();
   const hasScan = latestScore !== null;
   document.getElementById('ring-wrapper').hidden = !hasScan;
   document.getElementById('score-placeholder').hidden = hasScan;
@@ -1388,6 +1422,7 @@ function saveSessionProgress(summary = null) {
       if (!response.ok) return false;
       const result = await response.json();
       if (result.wearable_summary && checkIn === sessionId) wearableSummary = result.wearable_summary;
+      if (result.safety_review && checkIn === sessionId) safetyReview = result.safety_review;
       return result.success;
     } catch (error) {
       console.error('Failed to save session progress:', error);
@@ -1543,6 +1578,7 @@ function restart() {
   latestScore = latestRisk = latestConfidence = null;
   chatHistory = [];
   wearableSummary = null;
+  safetyReview = null;
   document.getElementById('finish-session').innerHTML = iconMarkup('check-circle') + '<span>Finish check-in</span>';
   document.getElementById('chat-messages').replaceChildren();
   document.getElementById('conf-fill').style.width = '0%';

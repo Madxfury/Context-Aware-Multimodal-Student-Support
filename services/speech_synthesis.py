@@ -1,6 +1,8 @@
 """Spoken replies in English, Hindi and Marathi, in a female or male counsellor voice.
 
 Providers, tried in order for the reply's language:
+- Sarvam Bulbul v3 (paid per character, with the same key as speech-to-text): natural Indian
+  voices for English, Hindi and Marathi. Its audio streams, starting in about 0.2 s.
 - ElevenLabs (paid; the free plan allows 10,000 characters a month).
 - Microsoft neural voices through the open-source edge-tts library (free, online): native
   Indian voices for English, Hindi and Marathi. edge-tts uses the Read Aloud service of the
@@ -11,17 +13,20 @@ The browser's own voice is the last resort (static/js/main.js).
 Pronunciation was checked by transcribing test sentences with Sarvam speech-to-text: the
 Microsoft voices had no character errors in any of the three languages; Piper had none in
 English and Marathi and 7.7% in Hindi (one inserted word). So Hindi and Marathi replies use
-the native Microsoft voices first, and English replies use ElevenLabs first.
+the native Microsoft voices first, and English replies use ElevenLabs first. Since
+2026-11-21 Sarvam's voices come first in all three languages, because they sound the most human.
 
 The Microsoft voices stream: playback starts with the first audio chunk instead of after the
 whole reply (about 4-5 s for 500 characters, and longer for Marathi).
 """
 
 import asyncio
+import base64
 import io
 import os
 import queue
 import re
+import time
 import wave
 from threading import Lock, Thread
 
@@ -42,8 +47,25 @@ PIPER_VOICES = {
 }
 ELEVENLABS_VOICES = {"female": "EXAVITQu4vr4xnSDxMaL",   # Sarah: mature, reassuring
                      "male": "nPczCjzI2devNBz1zQrb"}     # Brian: deep, resonant and comforting
+# Bulbul v3 voices for each counsellor gender and language. The male voice was chosen by
+# listening. The female voices were chosen on 2026-11-21 from all 14 female voices: every one
+# was transcribed back without errors, and these had the widest pitch movement (the least
+# flat, robotic delivery) at a natural speaking pace in their language.
+SARVAM_VOICES = {
+    "female": {"en": "pooja", "hi": "pooja", "mr": "rupali"},
+    "male": {"en": "aditya", "hi": "aditya", "mr": "aditya"},
+}
+SARVAM_LANGUAGES = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN"}
+SARVAM_MODEL = "bulbul:v3"
+SARVAM_TIMEOUT = 10.0
+# After the account refuses (a bad key or no credit left), use the next voice for a while
+# instead of adding a failed request to every reply.
+SARVAM_PAUSE = 1800
+sarvam_paused_until = 0.0
 PIPER_DIR = os.environ.get("PIPER_VOICE_DIR", os.path.join(BASE_DIR, "Models", "piper"))
-DEFAULT_ORDER = {"en": ("elevenlabs", "edge", "piper"), "hi": ("edge", "elevenlabs", "piper"), "mr": ("edge", "elevenlabs", "piper")}
+DEFAULT_ORDER = {"en": ("sarvam", "elevenlabs", "edge", "piper"),
+                 "hi": ("sarvam", "edge", "elevenlabs", "piper"),
+                 "mr": ("sarvam", "edge", "elevenlabs", "piper")}
 EDGE_FIRST_AUDIO_TIMEOUT = 10.0   # seconds to the first audio chunk before trying the next voice
 EDGE_TOTAL_TIMEOUT = 60.0
 MAX_SPEECH_CHARS = 2500
@@ -65,6 +87,62 @@ def clean_gender(value):
 def provider_order(language):
     custom = [name.strip() for name in os.environ.get("SAMVYA_TTS_ORDER", "").split(",") if name.strip()]
     return tuple(custom) if custom else DEFAULT_ORDER[language]
+
+
+def _sarvam_client():
+    key = os.environ.get("SARVAM_API_KEY")
+    if not key or key == "your_sarvam_api_key_here" or time.monotonic() < sarvam_paused_until:
+        return None
+    from sarvamai import SarvamAI
+    return SarvamAI(api_subscription_key=key, timeout=SARVAM_TIMEOUT)
+
+
+def _sarvam_failed(error):
+    global sarvam_paused_until
+    if getattr(error, "status_code", None) in (401, 402, 403):
+        sarvam_paused_until = time.monotonic() + SARVAM_PAUSE
+
+
+def _sarvam_request(text, language, gender):
+    return {"text": text, "target_language_code": SARVAM_LANGUAGES[language], "speaker": SARVAM_VOICES[gender][language],
+            "model": SARVAM_MODEL, "output_audio_codec": "mp3"}
+
+
+def sarvam_speech(text, language, gender="female"):
+    """Complete MP3 from a Sarvam voice, or None (no key, paused or failed)."""
+    client = _sarvam_client()
+    if client is None:
+        return None
+    try:
+        response = client.text_to_speech.convert(**_sarvam_request(text, language, gender))
+        audio = b"".join(base64.b64decode(part) for part in response.audios or [])
+    except Exception as error:
+        _sarvam_failed(error)
+        return None
+    return audio or None
+
+
+def _sarvam_chunks(text, language, gender="female"):
+    """Sarvam MP3 audio as an iterator of chunks, or None if it does not start."""
+    client = _sarvam_client()
+    if client is None:
+        return None
+    try:
+        chunks = iter(client.text_to_speech.convert_stream(**_sarvam_request(text, language, gender)))
+        first = next(chunk for chunk in chunks if chunk)
+    except Exception as error:      # includes StopIteration: no audio at all
+        _sarvam_failed(error)
+        return None
+
+    def rest():
+        yield first
+        try:
+            for chunk in chunks:
+                if chunk:
+                    yield chunk
+        except Exception:
+            return
+    return rest()
 
 
 def _edge_chunks(text, language, gender):
@@ -138,8 +216,14 @@ def piper_speech(text, language, gender="female"):
     return audio if len(audio) > 1000 else None
 
 
+# Emergency (112) and Tele MANAS (14416) numbers are read digit by digit, not as "one
+# hundred and twelve"; spaced digits do this in every voice and language.
+HELPLINE_NUMBERS = re.compile(r"(?<!\d)(112|14416)(?!\d)")
+
+
 def _prepare(text):
     text = (text or "").strip()[:MAX_SPEECH_CHARS]
+    text = HELPLINE_NUMBERS.sub(lambda match: " ".join(match.group(1)), text)
     return text, (reply_language(text) if text else None)
 
 
@@ -153,7 +237,9 @@ def synthesize(text, elevenlabs, gender="female"):
     if not text:
         return None, None, None
     for provider in provider_order(language):
-        if provider == "elevenlabs":
+        if provider == "sarvam":
+            audio, mimetype = sarvam_speech(text, language, gender), "audio/mpeg"
+        elif provider == "elevenlabs":
             audio, mimetype = elevenlabs(text, ELEVENLABS_VOICES[gender]), "audio/mpeg"
         elif provider == "edge":
             audio, mimetype = edge_speech(text, language, gender), "audio/mpeg"
@@ -167,13 +253,18 @@ def synthesize(text, elevenlabs, gender="female"):
 
 
 def stream(text, elevenlabs, gender="female"):
-    """Like synthesize, but the Microsoft voice is returned as a chunk iterator so playback
+    """Like synthesize, but the Sarvam and Microsoft voices are returned as chunk iterators so playback
     can start early. Returns (iterator of bytes, mimetype, provider) or (None, None, None)."""
     gender = clean_gender(gender)
     text, language = _prepare(text)
     if not text:
         return None, None, None
     for provider in provider_order(language):
+        if provider == "sarvam":
+            chunks = _sarvam_chunks(text, language, gender)
+            if chunks is not None:
+                return chunks, "audio/mpeg", "sarvam"
+            continue
         if provider == "edge":
             # Resolved through the module so a test can replace edge_speech or _edge_chunks.
             chunks = _edge_chunks(text, language, gender)

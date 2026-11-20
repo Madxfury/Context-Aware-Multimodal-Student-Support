@@ -39,14 +39,19 @@ _ROMAN_HINDI_WORDS = {
 def wrong_script(message, reply):
     """True when the reply's script does not match how the student wrote.
 
-    Hinglish (Hindi in English letters) should get English letters back, and a message
-    in Devanagari should get Devanagari back.
+    English and Hinglish (Hindi in English letters) should get English letters back, and a
+    message in Devanagari should get Devanagari back.
     """
     if DEVANAGARI.search(message):
         return not DEVANAGARI.search(reply)
     words = re.findall(r"[a-z]+", message.lower())
-    hinglish = sum(word in _ROMAN_HINDI_WORDS for word in words) >= 2
-    return hinglish and bool(DEVANAGARI.search(reply))
+    if any(word in ("hindi", "marathi") for word in words):
+        return False                      # the student may be asking for that language
+    if sum(word in _ROMAN_HINDI_WORDS for word in words) >= 2:      # Hinglish
+        return bool(DEVANAGARI.search(reply))
+    # An English message after earlier Hindi turns was seen answered in Hindi. A quoted
+    # Hindi word is fine; a reply written mostly in Devanagari is not.
+    return len(words) >= 2 and len(DEVANAGARI.findall(reply)) > len(re.findall(r"[A-Za-z]", reply))
 
 
 # Common words that differ between Marathi and Hindi (words used in both, such as का, हो and

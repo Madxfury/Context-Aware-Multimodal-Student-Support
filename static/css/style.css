@@ -520,6 +520,12 @@ dialog::backdrop { background: #1b332c75; }
 .report-alert p { display: block; line-height: 1.5; }
 .report-alert strong { display: inline-flex; align-items: center; gap: 6px; color: var(--clay); }
 .report-alert blockquote { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid #d9a99a; font-style: italic; overflow-wrap: anywhere; }
+.report-alert.urgent { border-color: #c98272; border-left-width: 6px; }
+.report-sheet > .report-alert { margin: 18px 0; }
+.safety-category { margin-top: 10px; }
+.safety-label { margin-top: 10px; font-weight: 700; font-size: .86rem; }
+.safety-note { margin-top: 10px; font-size: .8rem; opacity: .85; }
+.results-card .report-alert { margin: 0 0 16px; }
 .report-safe { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 12px; color: var(--text-muted); font-size: .84rem; }
 .report-safe .icon { flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
 .brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-top: 14px; }

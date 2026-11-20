@@ -1,0 +1,15 @@
+# Lite online demo on Vercel (api/index.py): everything except PyTorch, OpenCV and the
+# offline voices, which do not fit in a 500 MB function. The full app uses ../requirements.txt.
+Flask==3.1.3
+Werkzeug==3.1.9
+flask-sock==0.7.0
+websockets==16.0
+numpy==2.2.6
+pydantic==2.12.3
+Pillow==11.3.0
+python-dotenv==1.0.1
+groq==1.1.2
+sarvamai==0.1.27
+elevenlabs==2.43.0
+pyserial==3.5
+edge-tts==7.3.1

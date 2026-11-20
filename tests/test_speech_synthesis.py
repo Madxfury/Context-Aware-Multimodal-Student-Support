@@ -39,6 +39,7 @@ def test_hindi_and_marathi_use_native_voices_first_and_english_uses_elevenlabs_f
 def test_voices_exist_for_both_genders_in_all_three_languages():
     for gender in speech.GENDERS:
         assert set(speech.EDGE_VOICES[gender]) == set(speech.PIPER_VOICES[gender]) == {"en", "hi", "mr"}
+        assert set(speech.SARVAM_VOICES[gender]) == {"en", "hi", "mr"}
     assert speech.EDGE_VOICES["male"]["mr"] == "mr-IN-ManoharNeural" and speech.EDGE_VOICES["female"]["hi"] == "hi-IN-SwaraNeural"
 
 
@@ -88,3 +89,62 @@ def test_chat_uses_the_chosen_counsellor_voice(monkeypatch, tmp_path):
     streamed = client.get("/chat/speech/stream", query_string={"ticket": reply["speech_ticket"]})
     assert streamed.status_code == 200 and streamed.data == b"ID3male" and streamed.headers["X-Speech-Provider"] == "edge"
     assert client.get("/chat/speech/stream", query_string={"ticket": "tampered"}).status_code == 400
+
+
+# Captured at import, before tests/conftest.py replaces them for every test.
+REAL_SARVAM_SPEECH, REAL_SARVAM_CHUNKS = speech.sarvam_speech, speech._sarvam_chunks
+
+
+class FakeSarvam:
+    """Stands in for the SarvamAI client; records requests and never uses the network."""
+    def __init__(self, error=None):
+        self.requests, self.error = [], error
+        self.text_to_speech = self
+
+    def convert(self, **request):
+        self.requests.append(request)
+        if self.error:
+            raise self.error
+        return type("Response", (), {"audios": [speech.base64.b64encode(b"ID3sarvam").decode()]})()
+
+    def convert_stream(self, **request):
+        self.requests.append(request)
+        if self.error:
+            raise self.error
+        return iter([b"", b"ID3", b"stream"])
+
+
+def test_sarvam_voice_comes_first_in_every_language(monkeypatch):
+    fake = FakeSarvam()
+    monkeypatch.setattr(speech, "_sarvam_client", lambda: fake)
+    monkeypatch.setattr(speech, "sarvam_speech", REAL_SARVAM_SPEECH)
+    monkeypatch.setattr(speech, "_sarvam_chunks", REAL_SARVAM_CHUNKS)
+    eleven = lambda text, voice_id: b"elevenlabs"
+    assert speech.synthesize("Hello there.", eleven) == (b"ID3sarvam", "audio/mpeg", "sarvam")
+    assert speech.synthesize(MARATHI, eleven, "male")[2] == "sarvam"
+    chunks, mimetype, provider = speech.stream(HINDI, eleven)
+    assert provider == "sarvam" and mimetype == "audio/mpeg" and b"".join(chunks) == b"ID3stream"
+    languages = [(r["target_language_code"], r["speaker"]) for r in fake.requests]
+    assert languages == [("en-IN", "pooja"), ("mr-IN", "aditya"), ("hi-IN", "pooja")]
+    assert speech.SARVAM_VOICES["female"]["mr"] == "rupali"
+    assert {r["model"] for r in fake.requests} == {"bulbul:v3"}
+
+
+def test_refused_sarvam_account_pauses_and_the_next_voice_speaks(monkeypatch):
+    from sarvamai.core.api_error import ApiError
+    fake = FakeSarvam(ApiError(status_code=403, body="insufficient credits"))
+    clients = []
+    monkeypatch.setenv("SARVAM_API_KEY", "test")
+    import sarvamai
+    monkeypatch.setattr(sarvamai, "SarvamAI", lambda **kwargs: clients.append(kwargs) or fake)
+    monkeypatch.setattr(speech, "sarvam_speech", REAL_SARVAM_SPEECH)
+    monkeypatch.setattr(speech, "_sarvam_chunks", REAL_SARVAM_CHUNKS)
+    monkeypatch.setattr(speech, "edge_speech", lambda text, language, gender="female": b"edge")
+    assert speech.synthesize(HINDI, lambda text, voice_id: None) == (b"edge", "audio/mpeg", "edge")
+    assert speech.synthesize(HINDI, lambda text, voice_id: None)[2] == "edge"
+    assert len(clients) == 1                  # paused after the refusal: not asked again
+
+
+def test_sarvam_without_a_key_is_skipped(monkeypatch):
+    monkeypatch.setenv("SARVAM_API_KEY", "")
+    assert REAL_SARVAM_SPEECH("Hello", "en") is None and REAL_SARVAM_CHUNKS("Hello", "en") is None

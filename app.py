@@ -13,16 +13,20 @@ if platform.system() == "Darwin":
 
 from flask import Flask, Response, render_template, request, jsonify, stream_with_context
 from itsdangerous import BadData, URLSafeTimedSerializer
-import cv2
-import torch
-import timm
 import numpy as np
-import pandas as pd
-import torch.nn as nn
 from PIL import Image
 from datetime import datetime
-from torchvision import transforms
-from groq import Groq, RateLimitError
+try:
+    # The camera and stress models. The lite cloud demo (api/requirements.txt) is installed
+    # without them, because PyTorch alone is larger than a Vercel function may be.
+    import cv2
+    import torch
+    import timm
+    import torch.nn as nn
+    from torchvision import transforms
+except ImportError:
+    cv2 = torch = timm = nn = transforms = None
+from groq import BadRequestError, Groq, NotFoundError, RateLimitError
 from dotenv import load_dotenv
 from tempfile import TemporaryDirectory
 from pathlib import Path
@@ -35,7 +39,10 @@ from collections import OrderedDict
 from pydantic import ValidationError
 from schemas.observation import Observation, PhysiologicalData, VisualData, FatigueData, MotionData, AudioData, StressData
 from services.mental_health_score import calculate_mental_health_score, get_risk_level
-from services.physiological_stress import PhysiologicalStressService
+try:
+    from services.physiological_stress import PhysiologicalStressService
+except ImportError:   # lite cloud demo without PyTorch
+    PhysiologicalStressService = None
 from services.nlp_processor import NLPProcessorService
 from services.css_manager import CSSManager
 from services.intervention_selector import RuleBasedInterventionSelector
@@ -50,12 +57,22 @@ from services.india_support import (
     REFERRAL_TERMS, REGIONAL_SAFETY_PHRASES, SUPPORT_MARKER,
     refresh_saved_referral, support_message, without_generated_contacts,
 )
+from services import risk_flags
 from services.reply_text import devanagari_language, plain_reply, wrong_language, wrong_script
 from services.synthetic_simulator import SyntheticWearableSimulator, extract_synthetic_v2_sequence
 
 load_dotenv()
 
-physiological_service = PhysiologicalStressService()
+class NoStressModel:
+    """Stands in for the stress model when PyTorch is not installed (lite cloud demo)."""
+    model_available = False
+    sessions = {}
+
+    def predict(self, data):
+        return None
+
+
+physiological_service = PhysiologicalStressService() if PhysiologicalStressService else NoStressModel()
 nlp_service = NLPProcessorService()
 css_manager = CSSManager()
 intervention_selector = RuleBasedInterventionSelector()
@@ -243,15 +260,15 @@ MAX_IMAGE_LENGTH = 4_000_000
 MAX_AUDIO_BYTES = 12 * 1024 * 1024
 
 # ── Device ──────────────────────────────────────────────────────────────────
-DEVICE = torch.device(
+DEVICE = None if torch is None else torch.device(
     'cuda' if torch.cuda.is_available()
     else 'mps' if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
     else 'cpu'
 )
-print(f"Using device: {DEVICE}")
+print(f"Using device: {DEVICE}" if DEVICE else "PyTorch is not installed: camera and stress models are off (lite mode).")
 
 # ── Model ────────────────────────────────────────────────────────────────────
-class CustomSwinTransformer(nn.Module):
+class CustomSwinTransformer(nn.Module if nn else object):
     def __init__(self, pretrained=False, num_classes=7):
         super().__init__()
         self.backbone = timm.create_model(
@@ -269,7 +286,7 @@ class CustomSwinTransformer(nn.Module):
 
 
 model = None
-if os.path.isfile(MODEL_PATH):
+if torch is not None and os.path.isfile(MODEL_PATH):
     model = CustomSwinTransformer(pretrained=False, num_classes=len(EMOTIONS))
     state = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True)
     if isinstance(state, dict) and 'model_state_dict' in state:
@@ -287,7 +304,7 @@ else:
 EXPRESSION_MODEL_PATH = os.environ.get("EXPRESSION_MODEL_PATH", os.path.join(BASE_DIR, "Models", "hsemotion", "enet_b2_7.onnx"))
 EXPRESSION_INPUT_SIZE = 260
 expression_session = None
-if os.path.isfile(EXPRESSION_MODEL_PATH):
+if cv2 is not None and os.path.isfile(EXPRESSION_MODEL_PATH):
     try:
         import onnxruntime
         expression_session = onnxruntime.InferenceSession(EXPRESSION_MODEL_PATH, providers=["CPUExecutionProvider"])
@@ -306,16 +323,17 @@ def expression_probabilities(face_rgb):
     return (exp / exp.sum()).tolist()
 
 # ── Transforms & Face Detector ───────────────────────────────────────────────
-transform = transforms.Compose([
-    lambda img: img.convert("RGB"),
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
-
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+transform = face_cascade = None
+if torch is not None:
+    transform = transforms.Compose([
+        lambda img: img.convert("RGB"),
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
 
 # ── Grad-CAM ─────────────────────────────────────────────────────────────────
 class SwinGradCAM:
@@ -658,6 +676,9 @@ def synthesize_speech(text, voice_id="EXAVITQu4vr4xnSDxMaL"):
 
 
 GROQ_MODEL = "openai/gpt-oss-120b"
+# Each Groq model has its own per-minute token limit (8,000 on the free plan, about four
+# chat replies). When the main model is at its limit, these models answer instead.
+GROQ_FALLBACK_MODELS = ("openai/gpt-oss-20b", "qwen/qwen3.8-27b")
 MAX_RATE_LIMIT_WAIT = 8.0
 
 
@@ -672,18 +693,39 @@ def rate_limit_wait(error):
     return None
 
 
+def model_request(request, model):
+    """The request for another model; reasoning_effort is a gpt-oss option."""
+    request = dict(request, model=model)
+    if not model.startswith("openai/gpt-oss"):
+        request.pop("reasoning_effort", None)
+        request["reasoning_format"] = "hidden"
+    return request
+
+
 def groq_completion(client, **request):
-    """Create a completion, waiting once for a short per-minute token limit."""
+    """Create a completion. At the main model's per-minute limit, try the fallback models,
+    then wait once for a short limit and ask the main model again."""
     try:
         return client.chat.completions.create(**request)
     except RateLimitError as error:
-        wait = rate_limit_wait(error)
-        if wait is None:
-            wait = 2.0
-        if wait > MAX_RATE_LIMIT_WAIT:
-            raise
-        time.sleep(wait)
-        return client.chat.completions.create(**request)
+        limited = error
+    for model in GROQ_FALLBACK_MODELS:
+        if model == request["model"]:
+            continue
+        try:
+            completion = client.chat.completions.create(**model_request(request, model))
+            app.logger.info("Groq fallback model used: %s", model)
+            return completion
+        except (RateLimitError, NotFoundError, BadRequestError) as error:
+            # At its own limit, retired, or refusing an option: try the next one.
+            app.logger.warning("Groq fallback %s unavailable: %s", model, type(error).__name__)
+    wait = rate_limit_wait(limited)
+    if wait is None:
+        wait = 2.0
+    if wait > MAX_RATE_LIMIT_WAIT:
+        raise limited
+    time.sleep(wait)
+    return client.chat.completions.create(**request)
 
 
 def speech_request(ticket):
@@ -710,7 +752,7 @@ def chat_speech():
     if request_data is None:
         return jsonify({"error": "This voice reply is no longer available."}), 400
     reply, voice = request_data
-    # ElevenLabs, then free Microsoft neural voices, then offline Piper (services/speech_synthesis.py).
+    # Sarvam, then ElevenLabs or free Microsoft neural voices, then offline Piper (services/speech_synthesis.py).
     audio, mimetype, provider = speech_synthesis.synthesize(reply, synthesize_speech, voice)
     if audio is None:
         # The page then reads the reply with the browser's own voice.
@@ -730,6 +772,16 @@ def chat_speech_stream():
         return jsonify({"error": "Voice playback is unavailable.", "fallback": "browser"}), 503
     return Response(stream_with_context(chunks), mimetype=mimetype,
                     headers={"Cache-Control": "no-store", "X-Speech-Provider": provider})
+
+
+def reply_voice(text, data, voice):
+    """Voice fields for a chat reply: a speech ticket the page streams (defer_audio), or the audio."""
+    if data.get("defer_audio") is True:
+        return {"speech_ticket": speech_tickets.dumps({"text": text, "voice": voice})}
+    audio, mimetype, _ = speech_synthesis.synthesize(text, synthesize_speech, voice)
+    if not audio:
+        return {"audio_base64": None}
+    return {"audio_base64": base64.b64encode(audio).decode("ascii"), "audio_mimetype": mimetype}
 
 
 @app.route('/chat', methods=['POST'])
@@ -786,9 +838,10 @@ def chat():
     session_latest_guardrail[session_id] = {"input": input_guardrail, "output": None}
     if not input_guardrail.allowed and input_guardrail.action == "block":
         log_timeline_event(session_id, "GUARDRAIL", f"Input BLOCKED: {input_guardrail.category}")
+        reply = "I'm sorry, but I can't fulfill that request. I'm here to support you with counselling."
         return jsonify({
-            'response': "I'm sorry, but I can't fulfill that request. I'm here to support you with counselling.",
-            'audio_base64': None,
+            'response': reply,
+            **reply_voice(reply, data, counsellor_voice),
             'timing': {},
             'debug_state': get_debug_state(session_id)
         })
@@ -857,9 +910,13 @@ def chat():
         phrase in user_message for phrase in REGIONAL_SAFETY_PHRASES
     )
     if safety_required or REFERRAL_TERMS.search(user_message):
+        # The safety reply is spoken in the chosen counsellor voice like every other reply.
+        reply = support_message(user_message, safety_check_in=safety_required)
+        if safety_required:
+            log_timeline_event(session_id, "SAFETY", "Safety check-in and India support contacts shown")
         return jsonify({
-            'response': support_message(user_message, safety_check_in=safety_required),
-            'audio_base64': None,
+            'response': reply,
+            **reply_voice(reply, data, counsellor_voice),
             'timing': {},
             'debug_state': get_debug_state(session_id)
         })
@@ -1020,8 +1077,9 @@ Your task is to:
             if not attempt and wrong_script(user_message, model_reply):
                 # Regenerate once; a second reply is used even if the script is still mixed.
                 log_timeline_event(session_id, "GUARDRAIL", "Reply script did not match the student's")
-                retry_note = (" Write the whole reply in the student's script: English letters if they wrote "
-                              "Hindi or Marathi in English letters, Devanagari if they wrote in Devanagari.")
+                retry_note = (" Write the whole reply in the student's language and script: English if they wrote "
+                              "in English, English letters if they wrote Hindi or Marathi in English letters, "
+                              "Devanagari if they wrote in Devanagari.")
                 continue
             if not attempt and wrong_language(user_message, model_reply):
                 # Seen in testing: a Marathi message answered in Hindi. Regenerate once.
@@ -1043,14 +1101,12 @@ Your task is to:
         groq_time = time.time() - groq_start
         log_timeline_event(session_id, "GROQ", "Response generated")
 
-        if data.get("defer_audio") is True:
-            speech_ticket = speech_tickets.dumps({"text": counselor_response, "voice": counsellor_voice})
-        else:
-            tts_start = time.time()
-            audio, audio_mimetype, _ = speech_synthesis.synthesize(counselor_response, synthesize_speech, counsellor_voice)
-            if audio:
-                audio_base64 = base64.b64encode(audio).decode("ascii")
-                tts_time = time.time() - tts_start
+        tts_start = time.time()
+        voice_fields = reply_voice(counselor_response, data, counsellor_voice)
+        speech_ticket = voice_fields.get("speech_ticket")
+        audio_base64, audio_mimetype = voice_fields.get("audio_base64"), voice_fields.get("audio_mimetype")
+        if audio_base64:
+            tts_time = time.time() - tts_start
 
     except Exception as e:
         app.logger.warning('Chat provider unavailable: %s', type(e).__name__)
@@ -1359,6 +1415,8 @@ def save_session():
         "session_id": session_id,
         "summary_insight": refresh_saved_referral(data["summary_insight"]),
         "wearable_summary": wearable_summary,
+        # Samvya's own rules, so the flag appears even when the AI summary could not be made.
+        "safety_review": risk_flags.review(data.get("transcript", []), routed_to_safety),
     })
 
 session_briefs = OrderedDict()   # counsellor brief per check-in until the report is saved
@@ -1475,7 +1533,8 @@ def view_shareable_session(session_id):
         if brief:
             db_manager.save_counsellor_brief(session_id, brief)
             sess["counsellor_brief"] = brief
-    return render_template('share_session.html', session=sess)
+    safety = risk_flags.review(sess.get("transcript") or [], routed_to_safety)
+    return render_template('share_session.html', session=sess, safety=safety)
 
 if __name__ == '__main__':
     app.run(host="127.0.0.1", debug=os.environ.get("FLASK_DEBUG") == "1", port=int(os.environ.get("PORT", "5002")))

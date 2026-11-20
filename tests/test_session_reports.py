@@ -121,7 +121,9 @@ def test_generated_foreign_numbers_are_replaced_before_audio(client, monkeypatch
     assert "14416" in reply["response"]
     assert "९८८" not in reply["response"]
     assert "116 123" not in reply["response"]
-    assert audio.text_to_speech.convert.call_args.kwargs["text"] == reply["response"]
+    # Spoken the same, with helpline numbers read digit by digit.
+    spoken = reply["response"].replace("14416", "1 4 4 1 6").replace("112", "1 1 2")
+    assert audio.text_to_speech.convert.call_args.kwargs["text"] == spoken
 
 
 @pytest.mark.parametrize("with_answer", [False, True])

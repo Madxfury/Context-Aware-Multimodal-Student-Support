@@ -439,6 +439,9 @@ class WearableReader:
                     self._clear_sample("disconnected")
             except OSError:
                 self._clear_sample("waiting")
+            except Exception:
+                # Never let one bad line or driver error stop the reader for the rest of the run.
+                self._clear_sample("waiting")
             sleep(1)
 
     def _read_port(self, path):
