@@ -179,6 +179,12 @@ def test_save_returns_safety_flags_for_the_report(chat_client):
     assert calm["safety_review"]["flagged"] is False
 
 
+def test_public_deployment_accepts_any_host(monkeypatch):
+    monkeypatch.setattr(app_module, "ALLOWED_HOSTS", app_module.ALLOWED_HOSTS | {"*"})
+    client = app_module.app.test_client()
+    assert client.get("/api/health", headers={"Host": "samvya-ai.vercel.app"}).status_code == 200
+
+
 def test_requests_for_other_hosts_are_refused():
     client = app_module.app.test_client()
     assert client.get("/api/health").status_code == 200

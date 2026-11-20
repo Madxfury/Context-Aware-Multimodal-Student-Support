@@ -240,6 +240,8 @@ def format_axes(values):
 
 @app.before_request
 def reject_unknown_host():
+    if "*" in ALLOWED_HOSTS:
+        return None       # a public deployment (api/index.py): any host name is expected
     host = request.host.lower()
     name = host.rpartition("]")[0] + "]" if host.startswith("[") else host.partition(":")[0]
     if name not in ALLOWED_HOSTS:

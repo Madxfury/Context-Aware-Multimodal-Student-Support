@@ -21,11 +21,10 @@ os.environ.setdefault("SAMVYA_WEARABLE_PORT", "off")
 # profiles and reports in the online demo are temporary.
 os.environ.setdefault("DATABASE_PATH", "/tmp/samvya-demo.db")
 
-# app.py only answers requests for known host names; add this deployment's own addresses.
-hosts = [os.environ.get(name, "") for name in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL")]
-os.environ["SAMVYA_ALLOWED_HOSTS"] = ",".join(
-    [host for host in hosts if host] + [os.environ.get("SAMVYA_ALLOWED_HOSTS", "")]
-)
+# Locally, app.py answers only requests for 127.0.0.1 or localhost, so a web page on another
+# domain cannot reach the unauthenticated local APIs (DNS rebinding). This public deployment is
+# reached under several Vercel addresses and custom domains, so it accepts any host name.
+os.environ["SAMVYA_ALLOWED_HOSTS"] = "*"
 
 if not os.environ.get("SECRET_KEY"):
     # Voice tickets are signed by one function instance and may be read by another, so the key
