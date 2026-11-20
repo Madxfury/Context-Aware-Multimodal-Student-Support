@@ -128,35 +128,28 @@
 ## 🧠 How it works
 
 ```mermaid
-flowchart LR
-    subgraph Browser["🖥️ Browser"]
-        CAM["📷 MediaPipe face tracker<br/>clear-frame gating"]
-        CHAT["💬 Chat / 🎙️ voice"]
-        TILES["⌚ Wearable tiles"]
+flowchart TB
+    subgraph IN["📥 Inputs"]
+        direction LR
+        CHAT["💬 Chat / 🎙️ voice note"]
+        CAM["📷 Camera check-in<br/>MediaPipe clear frames"]
+        ESP["⌚ ESP32-S3 wearable<br/>PPG · motion · temp · GSR"]
     end
 
-    subgraph Server["🐍 Flask server (app.py)"]
-        VIS["Swin-FANE + HSEmotion<br/>ensemble → camera cues"]
-        NLP["NLP intent & sentiment<br/>+ safety rules"]
-        WEAR["Wearable reader<br/>pulse estimator"]
-        CSS["Contextual Student State"]
-        INT["Intervention selector"]
-        LLM["Groq LLM<br/>+ guardrails"]
-        TTS["Speech: ElevenLabs →<br/>Microsoft → Piper"]
-        DB[("SQLite<br/>sessions")]
-        REP["📝 Counsellor report"]
-    end
+    CHAT --> SAFE{"🛡️ Safety rules"}
+    SAFE -- "risk of self-harm" --> HELP["🆘 Fixed safety check-in<br/>Tele MANAS 14416 · 112"]
+    SAFE -- "otherwise" --> NLP["🔎 NLP<br/>intent · sentiment · terms"]
+    CAM --> VIS["🧠 Swin-FANE + HSEmotion<br/>ensemble → camera cue"]
+    ESP -- "USB serial" --> WEAR["🫀 Pulse estimator<br/>live · held · waiting"]
 
-    ESP["🔌 ESP32-S3 wearable<br/>PPG · IMU · temp · GSR"] -- "USB serial 115200" --> WEAR
-    CAM -- "face crop + cues" --> VIS
-    CHAT --> NLP
-    NLP -- "risk of self-harm" --> SAFE["🛡️ Fixed safety check-in<br/>Tele MANAS 14416 · 112"]
+    NLP --> CSS["🧩 Contextual Student State"]
     VIS --> CSS
-    NLP --> CSS
     WEAR --> CSS
-    WEAR --> TILES
-    CSS --> INT --> LLM --> TTS --> CHAT
-    LLM --> DB --> REP
+    CSS --> INT["🎯 Intervention selector"]
+    INT --> LLM["🤖 Groq LLM + guardrails"]
+    LLM --> TTS["🔊 Reply spoken in<br/>English · Hindi · Marathi"]
+    LLM --> DB[("🗄️ SQLite session")]
+    DB --> REP["📝 Counsellor report"]
 ```
 
 **One chat turn, step by step**
